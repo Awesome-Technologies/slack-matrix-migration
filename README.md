@@ -5,7 +5,9 @@ Warning: It's not recommended to use anything but a fresh/empty Synapse instance
 
 ## Prerequisites
 1. Install Python 3.7 with pip
-2. Set up a Synapse Homeserver (other Homeserver implementations may not support timestamped massaging, see https://matrix.org/docs/spec/application_service/r0.1.0#timestamp-massaging)
+2. Set up a Synapse Homeserver
+  - other Homeserver implementations may not support timestamped massaging, see https://matrix.org/docs/spec/application_service/r0.1.0#timestamp-massaging
+  - requires access to `/_synapse` admin api
 3. Create an admin user on the Homeserver (make sure the username of the admin user does not match any existing slack user id)
 4. Copy `migration_service.yaml` to somewhere reachable by your Homeserver
 5. Replace the `as_token` and `hs_token` in the `migration_service.yaml` with a random string
