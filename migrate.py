@@ -207,18 +207,18 @@ def register_user(
     user_type=None,
 ):
 
-    url = "%s/_synapse/admin/v1/users?access_token=%s" % (server_location,access_token,)
+    url = "%s/_synapse/admin/v2/users/@%s:%s" % (server_location, user, config_yaml['domain'])
+
+    headers = {'Authorization': ' '.join(['Bearer', access_token])}
 
     data = {
-        "username": user,
         "password": password,
         "displayname": displayname,
         "admin": admin,
-        "user_type": user_type,
     }
 
-    #_print("Sending registration request...")
-    r = requests.post(url, json=data, verify=False)
+    print("Creating user @%s:%s" % (user,config_yaml['domain']))
+    r = requests.put(url, json=data, headers=headers, verify=False)
 
     if r.status_code != 200:
         print("ERROR! Received %d %s" % (r.status_code, r.reason))
@@ -250,7 +250,7 @@ def register_room(
         "name": name,
         "topic": topic,
         "creation_content": {
-            "m.federate": False
+            "m.federate": True
         },
         "invite": invitees,
         "is_direct": is_dm,
