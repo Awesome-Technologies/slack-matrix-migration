@@ -77,14 +77,10 @@ def test_config(yaml):
         print("No Application Service token defined in config")
         sys.exit(1)
 
-    if not config_yaml["slack_token"] and not yaml["skip-files"]:
-        print("No Slack acces token defined in config. Would not be able to migrate files.")
-        sys.exit(1)
-
     dry_run = config_yaml["dry-run"]
     skip_archived = config_yaml["skip-archived"]
 
-    config = { "zipfile": config_yaml["zipfile"], "dry-run": dry_run, "homeserver": config_yaml["homeserver"], "skip-archived": skip_archived, "as_token": config_yaml["as_token"], "slack_token": config_yaml["slack_token"], "skip-files": config_yaml["skip-files"]}
+    config = { "zipfile": config_yaml["zipfile"], "dry-run": dry_run, "homeserver": config_yaml["homeserver"], "skip-archived": skip_archived, "as_token": config_yaml["as_token"], "skip-files": config_yaml["skip-files"]}
 
     return config
 

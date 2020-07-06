@@ -6,8 +6,6 @@ domain: example.org
 as_token: very-secret
 # Don't download files from Slack and upload them to Matrix
 skip-files: False
-# Slack token?
-slack_token: someslacktoken
 # Path to the Slack Backup relative to the current directory or absolute
 zipfile: ./Slack_Export.zip
 # Set to 'True' to perform a test without making changes to the homeserver
