@@ -27,7 +27,7 @@ import getpass
 import string
 import secrets
 import time
-from pyemojify import emojify
+from emoji import emojize
 import slackdown
 import re
 from files import process_attachments, process_files
@@ -586,17 +586,13 @@ def parse_and_send_message(config, message, matrix_room, txnId, is_later):
             slack_event_id = replyLUT[message["user"]+message["ts"]]
             matrix_event_id = eventLUT[slack_event_id]
 
-
         # TODO pinned / stared items?
 
-
+        # replace emojis
+        body = emojize(body, use_aliases=True)
 
         # TODO some URLs with special characters (e.g. _ ) are parsed wrong
         formatted_body = slackdown.render(body)
-
-        # replace emojis
-        formatted_body = emojify(formatted_body)
-        body = emojify(body)
 
         if not is_reply:
             content = {
@@ -645,7 +641,7 @@ def parse_and_send_message(config, message, matrix_room, txnId, is_later):
                 for reaction in message["reactions"]:
                     for user in reaction["users"]:
                         #print("Send reaction in room " + roomId)
-                        send_reaction(config, roomId, eventId, emojify(reaction["name"]), userLUT[user], txnId)
+                        send_reaction(config, roomId, eventId, emojize(reaction["name"], use_aliases=True), userLUT[user], txnId)
                         txnId = txnId + 1
 
     else:

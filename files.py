@@ -16,7 +16,7 @@
 import requests
 import slackdown
 from utils import send_event
-from pyemojify import emojify
+from emoji import emojize
 
 '''
  * Converts a slack image attachment to a matrix image event.
@@ -290,11 +290,11 @@ def process_file(file, roomId, userId, body, txnId, config):
         #   so we just send a separate `m.image` and `m.text` message
         # See https://github.com/matrix-org/matrix-doc/issues/906
         if body:
-            body = emojify(body)
+            body = emojize(body, use_aliases=True)
             messageContent = {
                 "body": body,
                 "format": "org.matrix.custom.html",
-                "formatted_body": emojify(slackdown.render(body)),
+                "formatted_body": emojize(slackdown.render(body), use_aliases=True),
                 "msgtype": "m.text",
             }
 
