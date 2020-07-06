@@ -213,7 +213,6 @@ def register_user(
         "admin": admin,
     }
 
-    print("Creating user @%s:%s" % (user,config_yaml['domain']))
     r = requests.put(url, json=data, headers=headers, verify=False)
 
     if r.status_code != 200 and r.status_code != 201:
