@@ -222,6 +222,7 @@ def process_file(file, roomId, userId, body, txnId, config):
         else:
             htmlCode = "<pre><code>"
 
+        htmlCode += htmlString
         htmlCode += "</code></pre>"
 
         messageContent = {
