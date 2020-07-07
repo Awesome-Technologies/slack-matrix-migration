@@ -355,10 +355,15 @@ def migrate_rooms(roomFile, config):
         _mxCreator = userLUT[channel["creator"]]
 
         _invitees = []
-        for user in channel["members"]:
-            if user != channel["creator"]:
-                if user in userLUT: # ignore dropped users like bots
-                    _invitees.append(userLUT[user])
+        if config_yaml["invite-all"]:
+            for user in nameLUT.keys():
+                if user != _mxCreator:
+                    _invitees.append(user)
+        else:
+            for user in channel["members"]:
+                if user != channel["creator"]:
+                    if user in userLUT: # ignore dropped users like bots
+                        _invitees.append(userLUT[user])
 
         roomDetails = {
             "slack_id": channel["id"],
