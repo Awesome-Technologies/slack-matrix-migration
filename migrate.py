@@ -245,7 +245,7 @@ def register_room(
         "name": name,
         "topic": topic,
         "creation_content": {
-            "m.federate": True
+            "m.federate": config_yaml["federate-rooms"]
         },
         "invite": invitees,
         "is_direct": is_dm,

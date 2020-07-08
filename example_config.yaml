@@ -12,5 +12,7 @@ zipfile: ./Slack_Export.zip
 dry-run: False
 # Set to 'False' if archived Channels from Slack should be migrated (and accessible in Matrix)
 skip-archived: True
-# Invite all users to all rooms
+# Set to 'True' to invite all users to all rooms
 invite-all: False
+# Set to 'True' to allow rooms to be joined from other homeservers
+federate-rooms: False
