@@ -232,6 +232,8 @@ def process_file(file, roomId, userId, body, txnId, config):
             "msgtype": "m.text",
         }
 
+        # TODO handle "event too large" exception, send as file
+
         # send message to room
         res = send_event(config, messageContent, roomId, userId, "m.room.message", txnId, file["timestamp"])
         if res == False:
