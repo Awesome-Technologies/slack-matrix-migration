@@ -573,6 +573,11 @@ def parse_and_send_message(config, message, matrix_room, txnId, is_later):
         if "attachments" in message:
             if message["user"] in userLUT: # ignore attachments from bots
                 txnId = process_attachments(message["attachments"], matrix_room, userLUT[message["user"]], body, txnId, config)
+                for attachment in message["attachments"]:
+                    if "is_share" in attachment and attachment["is_share"]:
+                        if body:
+                            body += "\n"
+                        body += "".join(["&gt; _Shared (", attachment["footer"], "):_ ", attachment["text"], "\n"])
 
         if "replies" in message: # this is the parent of a thread
             is_thread = True
