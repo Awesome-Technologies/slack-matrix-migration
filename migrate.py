@@ -577,7 +577,13 @@ def parse_and_send_message(config, message, matrix_room, txnId, is_later):
                     if "is_share" in attachment and attachment["is_share"]:
                         if body:
                             body += "\n"
-                        body += "".join(["&gt; _Shared (", attachment["footer"], "):_ ", attachment["text"], "\n"])
+                        attachment_footer = "no footer"
+                        if "footer" in attachment:
+                            attachment_footer = attachment["footer"]
+                        attachment_text = "no text"
+                        if "text" in attachment:
+                            attachment_text = attachment["text"]
+                        body += "".join(["&gt; _Shared (", attachment_footer, "):_ ", attachment_text, "\n"])
 
         if "replies" in message: # this is the parent of a thread
             is_thread = True
