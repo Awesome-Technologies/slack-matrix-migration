@@ -200,6 +200,8 @@ def process_file(file, roomId, userId, body, txnId, config):
         # we have no url to process the file
         return txnId
 
+    ts = str(file["timestamp"]) + "000"
+
     if file["mode"] == "snippet":
         htmlString = ""
         res = requests.get(file["url_private"])
@@ -232,10 +234,8 @@ def process_file(file, roomId, userId, body, txnId, config):
             "msgtype": "m.text",
         }
 
-        # TODO handle "event too large" exception, send as file
-
         # send message to room
-        res = send_event(config, messageContent, roomId, userId, "m.room.message", txnId, file["timestamp"])
+        res = send_event(config, messageContent, roomId, userId, "m.room.message", txnId, ts)
         if res == False:
             print("ERROR while sending snippet to room '" + roomId)
 
@@ -252,7 +252,7 @@ def process_file(file, roomId, userId, body, txnId, config):
                 "formatted_body": '<a href="' + link + '">' + file["name"] + '</a>',
                 "msgtype": "m.text",
             }
-            res = send_event(config, messageContent, roomId, userId, "m.room.message", txnId, file["timestamp"])
+            res = send_event(config, messageContent, roomId, userId, "m.room.message", txnId, ts)
             if res == False:
                 print("ERROR while sending file link to room '" + roomId)
 
@@ -282,7 +282,7 @@ def process_file(file, roomId, userId, body, txnId, config):
 
         messageContent = slackFileToMatrixMessage(file, fileContentUri, thumbnailContentUri)
 
-        res = send_event(config, messageContent, roomId, userId, "m.room.message", txnId, file["timestamp"])
+        res = send_event(config, messageContent, roomId, userId, "m.room.message", txnId, ts)
         if res == False:
             print("ERROR while sending file to room '" + roomId)
 
@@ -300,7 +300,7 @@ def process_file(file, roomId, userId, body, txnId, config):
                 "msgtype": "m.text",
             }
 
-            res = send_event(config, messageContent, roomId, userId, "m.room.message", txnId, file["timestamp"])
+            res = send_event(config, messageContent, roomId, userId, "m.room.message", txnId, ts)
             if res == False:
                 print("ERROR while sending file link to room '" + roomId)
 
