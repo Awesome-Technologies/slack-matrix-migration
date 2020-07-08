@@ -654,6 +654,7 @@ def parse_and_send_message(config, message, matrix_room, txnId, is_later):
     return txnId
 
 def migrate_messages(fileList, matrix_room, is_dm, config, tick):
+    global later
     archive = zipfile.ZipFile(config["zipfile"], 'r')
     txnId = 1
     progress = 0
@@ -674,6 +675,9 @@ def migrate_messages(fileList, matrix_room, is_dm, config, tick):
     # process postponed messages
     for message in later:
         txnId = parse_and_send_message(config, message, matrix_room, txnId, True)
+
+    # clean up postponed messages
+    later = []
 
 def main():
 
@@ -730,7 +734,7 @@ def main():
     print("Migrating messages to rooms. This may take a while...")
     for slack_room, matrix_room in roomLUT.items():
         print("Migrating messages for room: " + roomLUT2[slack_room])
-        fileList = loadZipFolder(config, roomLUT2[slack_room])
+        fileList = sorted(loadZipFolder(config, roomLUT2[slack_room]))
         if fileList:
             #print(fileList)
             tick = 1/len(fileList)
