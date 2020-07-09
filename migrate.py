@@ -175,7 +175,7 @@ def login(server_location):
 
     access_token = r.json()["access_token"]
 
-    return access_token
+    return admin_user, access_token
 
 def getMaxUploadSize(config, access_token):
     # get maxUploadSize from Homeserver
@@ -209,7 +209,7 @@ def register_user(
 
     data = {
         "password": password,
-        "displayname": displayname,
+        "displayname": "".join([displayname, config_yaml["name-suffix"]]),
         "admin": admin,
     }
 
@@ -242,7 +242,7 @@ def register_room(
 
     body = {
         "preset": _preset,
-        "name": name,
+        "name": "".join([name, config_yaml["room-suffix"]]),
         "topic": topic,
         "creation_content": {
             "m.federate": config_yaml["federate-rooms"]
@@ -342,7 +342,7 @@ def migrate_users(userFile, config, access_token):
     return userlist
 
 
-def migrate_rooms(roomFile, config):
+def migrate_rooms(roomFile, config, admin_user):
     roomlist = []
 
     # channels
@@ -352,7 +352,10 @@ def migrate_rooms(roomFile, config):
             if channel["is_archived"] == True:
                 continue
 
-        _mxCreator = userLUT[channel["creator"]]
+        if config_yaml["create-as-admin"]:
+            _mxCreator = "".join(["@", admin_user, ":", config_yaml["domain"]])
+        else:
+            _mxCreator = userLUT[channel["creator"]]
 
         _invitees = []
         if config_yaml["invite-all"]:
@@ -699,7 +702,7 @@ def main():
     jsonFiles = loadZip(config)
 
     # login with admin user to gain access token
-    access_token = login(config["homeserver"])
+    admin_user, access_token = login(config["homeserver"])
 
     maxUploadSize = getMaxUploadSize(config, access_token)
     config["maxUploadSize"] = maxUploadSize
@@ -718,11 +721,11 @@ def main():
     # create rooms and match to channels
     # Slack channels
     if "channels.json" in jsonFiles and not roomLUT:
-        roomlist_channels = migrate_rooms(jsonFiles["channels.json"], config)
+        roomlist_channels = migrate_rooms(jsonFiles["channels.json"], config, admin_user)
 
     # Slack groups
     if "groups.json" in jsonFiles and not roomLUT:
-        roomlist_groups = migrate_rooms(jsonFiles["groups.json"], config)
+        roomlist_groups = migrate_rooms(jsonFiles["groups.json"], config, admin_user)
 
     # create DMs
     if "dms.json" in jsonFiles and not dmLUT:

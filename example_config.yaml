@@ -14,5 +14,10 @@ dry-run: False
 skip-archived: True
 # Set to 'True' to invite all users to all rooms
 invite-all: False
+# Set to 'True' to invite the admin user to all rooms
+create-as-admin: False
 # Set to 'True' to allow rooms to be joined from other homeservers
 federate-rooms: False
+# Append room and displayname suffixes
+room-suffix: ""
+name-suffix: ""
