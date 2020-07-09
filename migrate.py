@@ -694,8 +694,27 @@ def migrate_messages(fileList, matrix_room, is_dm, config, tick):
     # clean up postponed messages
     later = []
 
-def main():
+def kick_imported_users(server_location, admin_user, access_token):
+    headers = {'Authorization': ' '.join(['Bearer', access_token])}
+    #headers = {'Authorization': ' '.join(['Bearer', config_yaml["as_token"]])}
 
+    for room in roomLUT.values():
+        url = "%s/_matrix/client/r0/rooms/%s/kick" % (server_location, room)
+
+        for name in nameLUT.keys():
+            data = {"user_id": name}
+
+            r = requests.post(url, json=data, headers=headers, verify=False)
+
+            if r.status_code != 200 and r.status_code != 201:
+                print("ERROR! Received %d %s" % (r.status_code, r.reason))
+                if 400 <= r.status_code < 500:
+                    try:
+                        print(r.json()["error"])
+                    except Exception:
+                        pass
+
+def main():
     logging.captureWarnings(True)
 
     config = test_config(yaml)
@@ -769,6 +788,10 @@ def main():
 
     # clean up postponed messages
     later = []
+
+    if config_yaml["kick-imported-users"]:
+        kick_imported_users(config["homeserver"], admin_user, access_token)
+
 
 if __name__ == "__main__":
     main()

@@ -16,6 +16,8 @@ skip-archived: True
 invite-all: False
 # Set to 'True' to invite the admin user to all rooms
 create-as-admin: False
+# Set to 'True' to kick all imported users from imported rooms
+kick-imported-users: False
 # Set to 'True' to allow rooms to be joined from other homeservers
 federate-rooms: False
 # Append room and displayname suffixes

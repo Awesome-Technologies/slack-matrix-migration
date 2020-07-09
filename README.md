@@ -9,14 +9,10 @@ Warning: It's not recommended to use anything but a fresh/empty Synapse instance
 3. Create an admin user on the Homeserver (make sure the username of the admin user does not match any existing slack user id)
 4. Copy `migration_service.yaml` to somewhere reachable by your Homeserver
 5. Replace the `as_token` and `hs_token` in the `migration_service.yaml` with a random string
-6. Add the Application Service to your `homeserver.yaml` and disable the registration rate limit:
+6. Add the Application Service to your `homeserver.yaml`:
 ```
 app_service_config_files:
   - /<path to the yaml file>/migration_service.yaml
-
-rc_registration:
-  per_second: 0
-  burst_count: 0
 ```
 7. Restart Synapse
 
@@ -24,6 +20,7 @@ Notes:
 
 - Make sure the migration script can access the `/_matrix/client` api and the `/_synapse` admin api
 - Other Homeserver implementations may not support timestamped massaging, see https://matrix.org/docs/spec/application_service/r0.1.0#timestamp-massaging
+- You may have to increase your homserver rate limits
 
 ## Running the migration
 1. Run `pip3 install -r required.txt`
