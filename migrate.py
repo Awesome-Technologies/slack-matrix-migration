@@ -103,7 +103,8 @@ def loadZipFolder(config, folder):
 
         fileList = []
         for entry in archive:
-            if folder in entry.filename and entry.is_dir() == False:
+            file_basename = entry.filename.split("/", maxsplit=1)[0]
+            if entry.is_dir() == False and folder == file_basename:
                 fileList.append(entry.filename)
 
         return fileList
