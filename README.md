@@ -3,6 +3,10 @@ Migrates Users, Channels and all the conversations from a Slack export to Matrix
 
 Warning: It's not recommended to use anything but a fresh/empty Synapse instance for migration
 
+However, you can configure it to import the Slack workspace to an empty federated server
+and use that to effectively migrate rooms to an existing Matrix server via federation.
+See 'Federated setup (import to an existing Matrix server)' below.
+
 ## Prerequisites
 1. Install Python 3.7 with pip
 2. Set up a Synapse Homeserver
@@ -21,6 +25,28 @@ Notes:
 - Make sure the migration script can access the `/_matrix/client` api and the `/_synapse` admin api
 - Other Homeserver implementations may not support timestamped massaging, see https://matrix.org/docs/spec/application_service/r0.1.0#timestamp-massaging
 - You may have to increase your homserver rate limits
+
+## Federated setup (import to an existing Matrix server)
+
+The idea is to migrate Slack to a fresh/empty Synapse instance, that is federated with your existing Matrix homeserver.
+All imported Slack users will be kicked after the migration is done, leaving only the admin user in the migrated rooms.
+Invite any users from your existing Matrix homeserver to the rooms manually using the admin user.
+
+You will need the following configuration:
+
+```yaml
+# Set to 'True' to invite all users to all rooms
+invite-all: True
+# Set to 'True' to invite the admin user to all rooms
+create-as-admin: True
+# Set to 'True' to kick all imported users from imported rooms
+kick-imported-users: True
+# Set to 'True' to allow rooms to be joined from other homeservers
+federate-rooms: True
+# Append room and displayname suffixes
+room-suffix: " (slack import)"
+name-suffix: " (slack import)"
+```
 
 ## Running the migration
 1. Run `pip3 install -r required.txt`
