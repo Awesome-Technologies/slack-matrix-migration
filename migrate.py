@@ -591,9 +591,16 @@ def parse_and_send_message(config, message, matrix_room, txnId, is_later):
 
         if "replies" in message: # this is the parent of a thread
             is_thread = True
+            previous_message = None
             for reply in message["replies"]:
                 if "user" in message and "ts" in message:
-                    replyLUT[reply["user"]+reply["ts"]] = message["user"]+message["ts"]
+                    first_message = message["user"]+message["ts"]
+                    current_message = reply["user"]+reply["ts"]
+                    if not previous_message:
+                        previous_message = first_message
+                    replyLUT[current_message] = previous_message
+                    if config_yaml["threads-reply-to-previous"]:
+                        previous_message = current_message
 
         # replys / threading
         if "thread_ts" in message and "parent_user_id" in message and not "replies" in message: # this message is a reply to another message
