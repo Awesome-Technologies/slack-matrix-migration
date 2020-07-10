@@ -57,4 +57,5 @@ name-suffix: " (slack import)"
 ## Cleanup
 1. Remove the Application Service from your `homeserver.yaml`
 2. Delete the `migration_service.yaml`
-3. Restart Synapse
+3. Reset any increased rate limits
+4. Restart Synapse
