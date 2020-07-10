@@ -291,18 +291,22 @@ def process_file(file, roomId, userId, body, txnId, config):
         # TODO: Currently Matrix lacks a way to upload a "captioned image",
         #   so we just send a separate `m.image` and `m.text` message
         # See https://github.com/matrix-org/matrix-doc/issues/906
-        if body:
-            body = emojize(body, use_aliases=True)
-            messageContent = {
-                "body": body,
-                "format": "org.matrix.custom.html",
-                "formatted_body": emojize(slackdown.render(body), use_aliases=True),
-                "msgtype": "m.text",
-            }
+        #
+        # TODO: The caption (message["text"]) will be sent anyway later after the return
+        #       This would create duplicated messages.
+        #
+        #if body:
+        #    body = emojize(body, use_aliases=True)
+        #    messageContent = {
+        #        "body": body,
+        #        "format": "org.matrix.custom.html",
+        #        "formatted_body": emojize(slackdown.render(body), use_aliases=True),
+        #        "msgtype": "m.text",
+        #    }
 
-            res = send_event(config, messageContent, roomId, userId, "m.room.message", txnId, ts)
-            if res == False:
-                print("ERROR while sending file link to room '" + roomId)
+        #    res = send_event(config, messageContent, roomId, userId, "m.room.message", txnId, ts)
+        #    if res == False:
+        #        print("ERROR while sending file link to room '" + roomId)
 
     txnId = txnId + 1
     return txnId
