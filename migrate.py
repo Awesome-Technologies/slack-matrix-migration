@@ -701,8 +701,9 @@ def migrate_messages(fileList, matrix_room, config, tick):
     # clean up postponed messages
     later = []
 
-def kick_imported_users(server_location, admin_user, access_token):
+def kick_imported_users(server_location, admin_user, access_token, tick):
     headers = {'Authorization': ' '.join(['Bearer', access_token])}
+    progress = 0
 
     for room in roomLUT.values():
         url = "%s/_matrix/client/r0/rooms/%s/kick" % (server_location, room)
@@ -719,6 +720,9 @@ def kick_imported_users(server_location, admin_user, access_token):
                         print(r.json()["error"])
                     except Exception:
                         pass
+
+        progress = progress + tick
+        update_progress(progress)
 
 def main():
     logging.captureWarnings(True)
@@ -740,9 +744,6 @@ def main():
     # create users in matrix and match them to slack users
     if "users.json" in jsonFiles and not userLUT:
         userlist = migrate_users(jsonFiles["users.json"], config, access_token)
-
-        # userlist printout
-        print(json.dumps(userlist, indent=4, sort_keys=True))
 
     # create rooms and match to channels
     # Slack channels
@@ -795,7 +796,9 @@ def main():
 
     # kick imported users from non-dm rooms
     if config_yaml["kick-imported-users"]:
-        kick_imported_users(config["homeserver"], admin_user, access_token)
+        print("Kicking imported users from rooms. This may take a while...")
+        tick = 1/len(roomLUT)
+        kick_imported_users(config["homeserver"], admin_user, access_token, tick)
 
 
 if __name__ == "__main__":
