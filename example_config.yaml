@@ -18,6 +18,8 @@ invite-all: False
 create-as-admin: False
 # Set to 'True' to kick all imported users from imported rooms
 kick-imported-users: False
+# Import public channels as private rooms
+import-as-private: False
 # Set to 'True' to allow rooms to be joined from other homeservers
 federate-rooms: False
 # Reply thread messages to previous thread message instead of parent message

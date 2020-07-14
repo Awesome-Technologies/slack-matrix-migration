@@ -232,24 +232,22 @@ def register_room(
     creator,
     topic,
     invitees,
-    is_dm,
+    preset,
     server_location,
     as_token,
 ):
     # register room
     url = "%s/_matrix/client/r0/createRoom?user_id=%s" % (server_location,creator,)
 
-    _preset = "trusted_private_chat" if is_dm else "public_chat"
-
     body = {
-        "preset": _preset,
+        "preset": preset,
         "name": "".join([name, config_yaml["room-suffix"]]),
         "topic": topic,
         "creation_content": {
             "m.federate": config_yaml["federate-rooms"]
         },
         "invite": invitees,
-        "is_direct": is_dm,
+        "is_direct": True if preset == "trusted_private_chat" else False,
     }
 
     #_print("Sending registration request...")
@@ -382,8 +380,10 @@ def migrate_rooms(roomFile, config, admin_user):
             "matrix_topic": channel["topic"]["value"],
         }
 
+        room_preset = "private_chat" if config_yaml["import-as-private"] else "public_chat"
+
         if not config["dry-run"]:
-            res = register_room(roomDetails["slack_name"], roomDetails["matrix_creator"], roomDetails["matrix_topic"], _invitees, False, config["homeserver"], config["as_token"])
+            res = register_room(roomDetails["slack_name"], roomDetails["matrix_creator"], roomDetails["matrix_topic"], _invitees, room_preset, config["homeserver"], config["as_token"])
 
             if res == False:
                 print("ERROR while registering room '" + roomDetails["slack_name"] + "'")
@@ -433,7 +433,7 @@ def migrate_dms(roomFile, config):
         }
 
         if not config["dry-run"]:
-            res = register_room('', roomDetails["matrix_creator"], '', _invitees, True, config["homeserver"], config["as_token"])
+            res = register_room('', roomDetails["matrix_creator"], '', _invitees, "trusted_private_chat", config["homeserver"], config["as_token"])
 
             if res == False:
                 print("ERROR while registering room '" + roomDetails["slack_name"] + "'")
@@ -675,7 +675,7 @@ def parse_and_send_message(config, message, matrix_room, txnId, is_later):
         print("Ignoring message type " + message["type"])
     return txnId
 
-def migrate_messages(fileList, matrix_room, is_dm, config, tick):
+def migrate_messages(fileList, matrix_room, config, tick):
     global later
     archive = zipfile.ZipFile(config["zipfile"], 'r')
     txnId = 1
@@ -777,7 +777,7 @@ def main():
         fileList = sorted(loadZipFolder(config, roomLUT2[slack_room]))
         if fileList:
             tick = 1/len(fileList)
-            migrate_messages(fileList, matrix_room, False, config, tick)
+            migrate_messages(fileList, matrix_room, config, tick)
 
     # clean up postponed messages
     later = []
@@ -788,7 +788,7 @@ def main():
         fileList = sorted(loadZipFolder(config, slack_room))
         if fileList:
             tick = 1/len(fileList)
-            migrate_messages(fileList, matrix_room, True, config, tick)
+            migrate_messages(fileList, matrix_room, config, tick)
 
     # clean up postponed messages
     later = []
