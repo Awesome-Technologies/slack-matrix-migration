@@ -703,7 +703,6 @@ def migrate_messages(fileList, matrix_room, is_dm, config, tick):
 
 def kick_imported_users(server_location, admin_user, access_token):
     headers = {'Authorization': ' '.join(['Bearer', access_token])}
-    #headers = {'Authorization': ' '.join(['Bearer', config_yaml["as_token"]])}
 
     for room in roomLUT.values():
         url = "%s/_matrix/client/r0/rooms/%s/kick" % (server_location, room)
@@ -756,7 +755,7 @@ def main():
 
     # create DMs
     if "dms.json" in jsonFiles and not dmLUT:
-        roomlist_dms = migrate_dms(jsonFiles["dms.json"], config)
+        roomlist_dms = migrate_dms(jsonFiles["dms.json"], config, admin_user)
 
     # write LUTs to file to be able to load from later if something goes wrong
     if not read_luts:
@@ -777,7 +776,6 @@ def main():
         print("Migrating messages for room: " + roomLUT2[slack_room])
         fileList = sorted(loadZipFolder(config, roomLUT2[slack_room]))
         if fileList:
-            #print(fileList)
             tick = 1/len(fileList)
             migrate_messages(fileList, matrix_room, False, config, tick)
 
@@ -787,15 +785,15 @@ def main():
     # send events to dms
     print("Migrating messages to DMs. This may take a while...")
     for slack_room, matrix_room in dmLUT.items():
-        fileList = loadZipFolder(config, slack_room)
+        fileList = sorted(loadZipFolder(config, slack_room))
         if fileList:
-            #print(fileList)
             tick = 1/len(fileList)
             migrate_messages(fileList, matrix_room, True, config, tick)
 
     # clean up postponed messages
     later = []
 
+    # kick imported users from non-dm rooms
     if config_yaml["kick-imported-users"]:
         kick_imported_users(config["homeserver"], admin_user, access_token)
 
