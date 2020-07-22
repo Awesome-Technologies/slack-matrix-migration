@@ -31,7 +31,7 @@ from emoji import emojize
 import slackdown
 import re
 from files import process_attachments, process_files
-from utils import send_event
+from utils import send_event, print
 
 
 channelTypes = ["dms.json", "groups.json", "mpims.json", "channels.json", "users.json"]

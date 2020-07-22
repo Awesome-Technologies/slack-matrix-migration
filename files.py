@@ -15,7 +15,7 @@
 
 import requests
 import slackdown
-from utils import send_event
+from utils import send_event, print
 from emoji import emojize
 
 '''
