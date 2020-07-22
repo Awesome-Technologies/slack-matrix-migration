@@ -171,7 +171,6 @@ def uploadContentFromURI(content, uri, config, user):
 
     url = "%s/_matrix/media/r0/upload?user_id=%s&filename=%s" % (config["homeserver"],user,content["title"],)
 
-    #_print("Sending registration request...")
     r = requests.post(url, headers={'Authorization': 'Bearer ' + config["as_token"], 'Content-Type': content["mimetype"]}, data=file_content, verify=False)
 
     if r.status_code != 200:
@@ -195,73 +194,63 @@ def process_files(files, roomId, userId, body, txnId, config):
         txnId = process_file(file, roomId, userId, body, txnId, config)
     return txnId
 
-def process_file(file, roomId, userId, body, txnId, config):
-    if not "url_private" in file:
-        # we have no url to process the file
+def process_snippet(file, roomId, userId, body, txnId, config, ts):
+    htmlString = ""
+    res = requests.get(file["url_private"])
+    if res.status_code != 200:
+        print("ERROR! Received %d %s" % (res.status_code, res.reason))
+        if 400 <= res.status_code < 500:
+            try:
+                print(res.json()["error"])
+            except Exception:
+                pass
         return txnId
 
-    ts = str(file["timestamp"]) + "000"
+    htmlString = res.content.decode("utf-8")
 
-    if file["mode"] == "snippet":
-        htmlString = ""
-        res = requests.get(file["url_private"])
-        if res.status_code != 200:
-            print("ERROR! Received %d %s" % (res.status_code, res.reason))
-            if 400 <= res.status_code < 500:
-                try:
-                    print(res.json()["error"])
-                except Exception:
-                    pass
-            return txnId
+    htmlCode = ""
+    # Because escaping 6 backticks is not good for readability.
+    code = "```\n" + htmlString + "\n```"
+    if "filetype" in file:
+        htmlCode = '<pre><code class="language-' + file["filetype"] + '">'
+    else:
+        htmlCode = "<pre><code>"
 
-        htmlString = res.content.decode("utf-8")
+    htmlCode += htmlString
+    htmlCode += "</code></pre>"
 
-        htmlCode = ""
-        # Because escaping 6 backticks is not good for readability.
-        code = "```\n" + htmlString + "\n```"
-        if "filetype" in file:
-            htmlCode = '<pre><code class="language-' + file["filetype"] + '">'
+    messageContent = {
+        "body": code,
+        "format": "org.matrix.custom.html",
+        "formatted_body": htmlCode,
+        "msgtype": "m.text",
+    }
+
+    # send message to room
+    res = send_event(config, messageContent, roomId, userId, "m.room.message", txnId, ts)
+    if res == False:
+        print("ERROR while sending snippet to room '" + roomId)
+
+    return txnId
+
+def process_upload(file, roomId, userId, body, txnId, config, ts):
+    if "maxUploadSize" in config and file["size"] > config["maxUploadSize"]:
+        if file["public_url_shared"]:
+            link = file["permalink_public"]
         else:
-            htmlCode = "<pre><code>"
-
-        htmlCode += htmlString
-        htmlCode += "</code></pre>"
-
+            link = file["url_private"]
+        print("File too large, sending as a link");
         messageContent = {
-            "body": code,
+            "body": link + '(' + file["name"] + ')',
             "format": "org.matrix.custom.html",
-            "formatted_body": htmlCode,
+            "formatted_body": '<a href="' + link + '">' + file["name"] + '</a>',
             "msgtype": "m.text",
         }
-
-        # send message to room
         res = send_event(config, messageContent, roomId, userId, "m.room.message", txnId, ts)
         if res == False:
-            print("ERROR while sending snippet to room '" + roomId)
+            print("ERROR while sending file link to room '" + roomId)
 
     else:
-        if "maxUploadSize" in config and file["size"] > config["maxUploadSize"]:
-            if file["public_url_shared"]:
-                link = file["permalink_public"]
-            else:
-                link = file["url_private"]
-            print("File too large, sending as a link");
-            messageContent = {
-                "body": link + '(' + file["name"] + ')',
-                "format": "org.matrix.custom.html",
-                "formatted_body": '<a href="' + link + '">' + file["name"] + '</a>',
-                "msgtype": "m.text",
-            }
-            res = send_event(config, messageContent, roomId, userId, "m.room.message", txnId, ts)
-            if res == False:
-                print("ERROR while sending file link to room '" + roomId)
-
-            txnId = txnId + 1
-            return txnId
-
-        # We also need to upload the thumbnail
-
-        # Slack ain't a believer in consistency.
         thumbUri = ""
         thumbnailContentUri=""
 
@@ -286,27 +275,20 @@ def process_file(file, roomId, userId, body, txnId, config):
         if res == False:
             print("ERROR while sending file to room '" + roomId)
 
-        txnId = txnId + 1
+    txnId = txnId + 1
+    return txnId
 
-        # TODO: Currently Matrix lacks a way to upload a "captioned image",
-        #   so we just send a separate `m.image` and `m.text` message
-        # See https://github.com/matrix-org/matrix-doc/issues/906
-        #
-        # TODO: The caption (message["text"]) will be sent anyway later after the return
-        #       This would create duplicated messages.
-        #
-        #if body:
-        #    body = emojize(body, use_aliases=True)
-        #    messageContent = {
-        #        "body": body,
-        #        "format": "org.matrix.custom.html",
-        #        "formatted_body": emojize(slackdown.render(body), use_aliases=True),
-        #        "msgtype": "m.text",
-        #    }
+def process_file(file, roomId, userId, body, txnId, config):
+    if not "url_private" in file:
+        # we have no url to process the file
+        return txnId
 
-        #    res = send_event(config, messageContent, roomId, userId, "m.room.message", txnId, ts)
-        #    if res == False:
-        #        print("ERROR while sending file link to room '" + roomId)
+    ts = str(file["timestamp"]) + "000"
+
+    if file["mode"] == "snippet":
+        txnId = process_snippet(file, roomId, userId, body, txnId, config, ts)
+    else:
+        txnId = process_upload(file, roomId, userId, body, txnId, config, ts)
 
     txnId = txnId + 1
     return txnId
