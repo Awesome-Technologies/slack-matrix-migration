@@ -37,8 +37,8 @@ def send_event(
         print("ERROR! Received %d %s" % (r.status_code, r.reason))
         if 400 <= r.status_code < 500:
             try:
-                print(r.json()["error"])
-                print(matrix_message)
+                print(' '.join([r.status_code, r.json()["error"]]))
+                #print(matrix_message)
             except Exception:
                 pass
         return False

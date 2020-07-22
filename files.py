@@ -229,7 +229,9 @@ def process_snippet(file, roomId, userId, body, txnId, config, ts):
     # send message to room
     res = send_event(config, messageContent, roomId, userId, "m.room.message", txnId, ts)
     if res == False:
-        print("ERROR while sending snippet to room '" + roomId)
+        print("Could not send snippet to room '" + roomId + ", trying to send as file...")
+        txnId = process_upload(file, roomId, userId, body, txnId, config, ts)
+        return txnId
 
     return txnId
 
@@ -239,7 +241,7 @@ def process_upload(file, roomId, userId, body, txnId, config, ts):
             link = file["permalink_public"]
         else:
             link = file["url_private"]
-        print("File too large, sending as a link");
+        print("WARNING: File too large, sending as a link: " + link);
         messageContent = {
             "body": link + '(' + file["name"] + ')',
             "format": "org.matrix.custom.html",
