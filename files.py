@@ -194,6 +194,13 @@ def process_files(files, roomId, userId, body, txnId, config):
         txnId = process_file(file, roomId, userId, body, txnId, config)
     return txnId
 
+def get_link(file):
+    if file["public_url_shared"]:
+        link = file["permalink_public"]
+    else:
+        link = file["url_private"]
+    return link
+
 def process_snippet(file, roomId, userId, body, txnId, config, ts):
     htmlString = ""
     res = requests.get(file["url_private"])
@@ -229,7 +236,9 @@ def process_snippet(file, roomId, userId, body, txnId, config, ts):
     # send message to room
     res = send_event(config, messageContent, roomId, userId, "m.room.message", txnId, ts)
     if res == False:
-        print("Could not send snippet to room '" + roomId + ", trying to send as file...")
+        link = get_link(file)
+        print("Could not send snippet: " + link)
+        print("Trying to send as file...")
         txnId = process_upload(file, roomId, userId, body, txnId, config, ts)
         return txnId
 
@@ -237,10 +246,7 @@ def process_snippet(file, roomId, userId, body, txnId, config, ts):
 
 def process_upload(file, roomId, userId, body, txnId, config, ts):
     if "maxUploadSize" in config and file["size"] > config["maxUploadSize"]:
-        if file["public_url_shared"]:
-            link = file["permalink_public"]
-        else:
-            link = file["url_private"]
+        link = get_link(file)
         print("WARNING: File too large, sending as a link: " + link);
         messageContent = {
             "body": link + '(' + file["name"] + ')',
