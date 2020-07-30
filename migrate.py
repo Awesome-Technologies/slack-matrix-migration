@@ -27,11 +27,11 @@ import getpass
 import string
 import secrets
 import time
-from pyemojify import emojify
+from emoji import emojize
 import slackdown
 import re
 from files import process_attachments, process_files
-from utils import send_event
+from utils import send_event, print
 
 
 channelTypes = ["dms.json", "groups.json", "mpims.json", "channels.json", "users.json"]
@@ -77,14 +77,10 @@ def test_config(yaml):
         print("No Application Service token defined in config")
         sys.exit(1)
 
-    if not config_yaml["slack_token"] and not yaml["skip-files"]:
-        print("No Slack acces token defined in config. Would not be able to migrate files.")
-        sys.exit(1)
-
     dry_run = config_yaml["dry-run"]
     skip_archived = config_yaml["skip-archived"]
 
-    config = { "zipfile": config_yaml["zipfile"], "dry-run": dry_run, "homeserver": config_yaml["homeserver"], "skip-archived": skip_archived, "as_token": config_yaml["as_token"], "slack_token": config_yaml["slack_token"], "skip-files": config_yaml["skip-files"]}
+    config = { "zipfile": config_yaml["zipfile"], "dry-run": dry_run, "homeserver": config_yaml["homeserver"], "skip-archived": skip_archived, "as_token": config_yaml["as_token"], "skip-files": config_yaml["skip-files"]}
 
     return config
 
@@ -107,7 +103,8 @@ def loadZipFolder(config, folder):
 
         fileList = []
         for entry in archive:
-            if folder in entry.filename and entry.is_dir() == False:
+            file_basename = entry.filename.split("/", maxsplit=1)[0]
+            if entry.is_dir() == False and folder == file_basename:
                 fileList.append(entry.filename)
 
         return fileList
@@ -179,7 +176,7 @@ def login(server_location):
 
     access_token = r.json()["access_token"]
 
-    return access_token
+    return admin_user, access_token
 
 def getMaxUploadSize(config, access_token):
     # get maxUploadSize from Homeserver
@@ -207,20 +204,19 @@ def register_user(
     user_type=None,
 ):
 
-    url = "%s/_synapse/admin/v1/users?access_token=%s" % (server_location,access_token,)
+    url = "%s/_synapse/admin/v2/users/@%s:%s" % (server_location, user, config_yaml['domain'])
+
+    headers = {'Authorization': ' '.join(['Bearer', access_token])}
 
     data = {
-        "username": user,
         "password": password,
-        "displayname": displayname,
+        "displayname": "".join([displayname, config_yaml["name-suffix"]]),
         "admin": admin,
-        "user_type": user_type,
     }
 
-    #_print("Sending registration request...")
-    r = requests.post(url, json=data, verify=False)
+    r = requests.put(url, json=data, headers=headers, verify=False)
 
-    if r.status_code != 200:
+    if r.status_code != 200 and r.status_code != 201:
         print("ERROR! Received %d %s" % (r.status_code, r.reason))
         if 400 <= r.status_code < 500:
             try:
@@ -236,24 +232,22 @@ def register_room(
     creator,
     topic,
     invitees,
-    is_dm,
+    preset,
     server_location,
     as_token,
 ):
     # register room
     url = "%s/_matrix/client/r0/createRoom?user_id=%s" % (server_location,creator,)
 
-    _preset = "trusted_private_chat" if is_dm else "public_chat"
-
     body = {
-        "preset": _preset,
-        "name": name,
+        "preset": preset,
+        "name": "".join([name, config_yaml["room-suffix"]]),
         "topic": topic,
         "creation_content": {
-            "m.federate": False
+            "m.federate": config_yaml["federate-rooms"]
         },
         "invite": invitees,
-        "is_direct": is_dm,
+        "is_direct": True if preset == "trusted_private_chat" else False,
     }
 
     #_print("Sending registration request...")
@@ -347,7 +341,7 @@ def migrate_users(userFile, config, access_token):
     return userlist
 
 
-def migrate_rooms(roomFile, config):
+def migrate_rooms(roomFile, config, admin_user):
     roomlist = []
 
     # channels
@@ -357,13 +351,21 @@ def migrate_rooms(roomFile, config):
             if channel["is_archived"] == True:
                 continue
 
-        _mxCreator = userLUT[channel["creator"]]
+        if config_yaml["create-as-admin"]:
+            _mxCreator = "".join(["@", admin_user, ":", config_yaml["domain"]])
+        else:
+            _mxCreator = userLUT[channel["creator"]]
 
         _invitees = []
-        for user in channel["members"]:
-            if user != channel["creator"]:
-                if user in userLUT: # ignore dropped users like bots
-                    _invitees.append(userLUT[user])
+        if config_yaml["invite-all"]:
+            for user in nameLUT.keys():
+                if user != _mxCreator:
+                    _invitees.append(user)
+        else:
+            for user in channel["members"]:
+                if user != channel["creator"]:
+                    if user in userLUT: # ignore dropped users like bots
+                        _invitees.append(userLUT[user])
 
         roomDetails = {
             "slack_id": channel["id"],
@@ -378,8 +380,10 @@ def migrate_rooms(roomFile, config):
             "matrix_topic": channel["topic"]["value"],
         }
 
+        room_preset = "private_chat" if config_yaml["import-as-private"] else "public_chat"
+
         if not config["dry-run"]:
-            res = register_room(roomDetails["slack_name"], roomDetails["matrix_creator"], roomDetails["matrix_topic"], _invitees, False, config["homeserver"], config["as_token"])
+            res = register_room(roomDetails["slack_name"], roomDetails["matrix_creator"], roomDetails["matrix_topic"], _invitees, room_preset, config["homeserver"], config["as_token"])
 
             if res == False:
                 print("ERROR while registering room '" + roomDetails["slack_name"] + "'")
@@ -429,7 +433,7 @@ def migrate_dms(roomFile, config):
         }
 
         if not config["dry-run"]:
-            res = register_room('', roomDetails["matrix_creator"], '', _invitees, True, config["homeserver"], config["as_token"])
+            res = register_room('', roomDetails["matrix_creator"], '', _invitees, "trusted_private_chat", config["homeserver"], config["as_token"])
 
             if res == False:
                 print("ERROR while registering room '" + roomDetails["slack_name"] + "'")
@@ -573,12 +577,30 @@ def parse_and_send_message(config, message, matrix_room, txnId, is_later):
         if "attachments" in message:
             if message["user"] in userLUT: # ignore attachments from bots
                 txnId = process_attachments(message["attachments"], matrix_room, userLUT[message["user"]], body, txnId, config)
+                for attachment in message["attachments"]:
+                    if "is_share" in attachment and attachment["is_share"]:
+                        if body:
+                            body += "\n"
+                        attachment_footer = "no footer"
+                        if "footer" in attachment:
+                            attachment_footer = attachment["footer"]
+                        attachment_text = "no text"
+                        if "text" in attachment:
+                            attachment_text = attachment["text"]
+                        body += "".join(["&gt; _Shared (", attachment_footer, "):_ ", attachment_text, "\n"])
 
         if "replies" in message: # this is the parent of a thread
             is_thread = True
+            previous_message = None
             for reply in message["replies"]:
                 if "user" in message and "ts" in message:
-                    replyLUT[reply["user"]+reply["ts"]] = message["user"]+message["ts"]
+                    first_message = message["user"]+message["ts"]
+                    current_message = reply["user"]+reply["ts"]
+                    if not previous_message:
+                        previous_message = first_message
+                    replyLUT[current_message] = previous_message
+                    if config_yaml["threads-reply-to-previous"]:
+                        previous_message = current_message
 
         # replys / threading
         if "thread_ts" in message and "parent_user_id" in message and not "replies" in message: # this message is a reply to another message
@@ -591,17 +613,13 @@ def parse_and_send_message(config, message, matrix_room, txnId, is_later):
             slack_event_id = replyLUT[message["user"]+message["ts"]]
             matrix_event_id = eventLUT[slack_event_id]
 
-
         # TODO pinned / stared items?
 
-
+        # replace emojis
+        body = emojize(body, use_aliases=True)
 
         # TODO some URLs with special characters (e.g. _ ) are parsed wrong
         formatted_body = slackdown.render(body)
-
-        # replace emojis
-        formatted_body = emojify(formatted_body)
-        body = emojify(body)
 
         if not is_reply:
             content = {
@@ -650,14 +668,15 @@ def parse_and_send_message(config, message, matrix_room, txnId, is_later):
                 for reaction in message["reactions"]:
                     for user in reaction["users"]:
                         #print("Send reaction in room " + roomId)
-                        send_reaction(config, roomId, eventId, emojify(reaction["name"]), userLUT[user], txnId)
+                        send_reaction(config, roomId, eventId, emojize(reaction["name"], use_aliases=True), userLUT[user], txnId)
                         txnId = txnId + 1
 
     else:
         print("Ignoring message type " + message["type"])
     return txnId
 
-def migrate_messages(fileList, matrix_room, is_dm, config, tick):
+def migrate_messages(fileList, matrix_room, config, tick):
+    global later
     archive = zipfile.ZipFile(config["zipfile"], 'r')
     txnId = 1
     progress = 0
@@ -679,8 +698,33 @@ def migrate_messages(fileList, matrix_room, is_dm, config, tick):
     for message in later:
         txnId = parse_and_send_message(config, message, matrix_room, txnId, True)
 
-def main():
+    # clean up postponed messages
+    later = []
 
+def kick_imported_users(server_location, admin_user, access_token, tick):
+    headers = {'Authorization': ' '.join(['Bearer', access_token])}
+    progress = 0
+
+    for room in roomLUT.values():
+        url = "%s/_matrix/client/r0/rooms/%s/kick" % (server_location, room)
+
+        for name in nameLUT.keys():
+            data = {"user_id": name}
+
+            r = requests.post(url, json=data, headers=headers, verify=False)
+
+            if r.status_code != 200 and r.status_code != 201:
+                print("ERROR! Received %d %s" % (r.status_code, r.reason))
+                if 400 <= r.status_code < 500:
+                    try:
+                        print(r.json()["error"])
+                    except Exception:
+                        pass
+
+        progress = progress + tick
+        update_progress(progress)
+
+def main():
     logging.captureWarnings(True)
 
     config = test_config(yaml)
@@ -688,7 +732,7 @@ def main():
     jsonFiles = loadZip(config)
 
     # login with admin user to gain access token
-    access_token = login(config["homeserver"])
+    admin_user, access_token = login(config["homeserver"])
 
     maxUploadSize = getMaxUploadSize(config, access_token)
     config["maxUploadSize"] = maxUploadSize
@@ -701,21 +745,18 @@ def main():
     if "users.json" in jsonFiles and not userLUT:
         userlist = migrate_users(jsonFiles["users.json"], config, access_token)
 
-        # userlist printout
-        print(json.dumps(userlist, indent=4, sort_keys=True))
-
     # create rooms and match to channels
     # Slack channels
     if "channels.json" in jsonFiles and not roomLUT:
-        roomlist_channels = migrate_rooms(jsonFiles["channels.json"], config)
+        roomlist_channels = migrate_rooms(jsonFiles["channels.json"], config, admin_user)
 
     # Slack groups
     if "groups.json" in jsonFiles and not roomLUT:
-        roomlist_groups = migrate_rooms(jsonFiles["groups.json"], config)
+        roomlist_groups = migrate_rooms(jsonFiles["groups.json"], config, admin_user)
 
     # create DMs
     if "dms.json" in jsonFiles and not dmLUT:
-        roomlist_dms = migrate_dms(jsonFiles["dms.json"], config)
+        roomlist_dms = migrate_dms(jsonFiles["dms.json"], config, admin_user)
 
     # write LUTs to file to be able to load from later if something goes wrong
     if not read_luts:
@@ -734,11 +775,10 @@ def main():
     print("Migrating messages to rooms. This may take a while...")
     for slack_room, matrix_room in roomLUT.items():
         print("Migrating messages for room: " + roomLUT2[slack_room])
-        fileList = loadZipFolder(config, roomLUT2[slack_room])
+        fileList = sorted(loadZipFolder(config, roomLUT2[slack_room]))
         if fileList:
-            #print(fileList)
             tick = 1/len(fileList)
-            migrate_messages(fileList, matrix_room, False, config, tick)
+            migrate_messages(fileList, matrix_room, config, tick)
 
     # clean up postponed messages
     later = []
@@ -746,14 +786,20 @@ def main():
     # send events to dms
     print("Migrating messages to DMs. This may take a while...")
     for slack_room, matrix_room in dmLUT.items():
-        fileList = loadZipFolder(config, slack_room)
+        fileList = sorted(loadZipFolder(config, slack_room))
         if fileList:
-            #print(fileList)
             tick = 1/len(fileList)
-            migrate_messages(fileList, matrix_room, True, config, tick)
+            migrate_messages(fileList, matrix_room, config, tick)
 
     # clean up postponed messages
     later = []
+
+    # kick imported users from non-dm rooms
+    if config_yaml["kick-imported-users"]:
+        print("Kicking imported users from rooms. This may take a while...")
+        tick = 1/len(roomLUT)
+        kick_imported_users(config["homeserver"], admin_user, access_token, tick)
+
 
 if __name__ == "__main__":
     main()

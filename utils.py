@@ -14,6 +14,25 @@
 # limitations under the License.
 
 import requests
+import functools
+
+def super_print(filename):
+    '''filename is the file where output will be written'''
+    def wrap(func):
+        '''func is the function you are "overriding", i.e. wrapping'''
+        def wrapped_func(*args,**kwargs):
+            '''*args and **kwargs are the arguments supplied
+            to the overridden function'''
+            #use with statement to open, write to, and close the file safely
+            with open(filename,'a') as outputfile:
+                outputfile.write(*args,**kwargs)
+                outputfile.write("\n")
+            #now original function executed with its arguments as normal
+            return func(*args,**kwargs)
+        return wrapped_func
+    return wrap
+
+print = super_print('migration.log')(print)
 
 def send_event(
     config,
@@ -37,8 +56,8 @@ def send_event(
         print("ERROR! Received %d %s" % (r.status_code, r.reason))
         if 400 <= r.status_code < 500:
             try:
-                print(r.json()["error"])
-                print(matrix_message)
+                print(' '.join([r.status_code, r.json()["error"]]))
+                #print(matrix_message)
             except Exception:
                 pass
         return False
