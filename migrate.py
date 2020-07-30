@@ -354,7 +354,11 @@ def migrate_rooms(roomFile, config, admin_user):
         if config_yaml["create-as-admin"]:
             _mxCreator = "".join(["@", admin_user, ":", config_yaml["domain"]])
         else:
-            _mxCreator = userLUT[channel["creator"]]
+            # if user is not in LUT (maybe its a shared channel), default to admin_user
+            if channel["creator"] in userLUT:
+                _mxCreator = userLUT[channel["creator"]]
+            else:
+                _mxCreator = "".join(["@", admin_user, ":", config_yaml["domain"]])
 
         _invitees = []
         if config_yaml["invite-all"]:
