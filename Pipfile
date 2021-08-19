@@ -8,5 +8,8 @@ ipython = "*"
 pylint = "*"
 
 [packages]
-pyyaml = "*"
 prometheus-client = "*"
+requests = "*"
+emoji = "*"
+slackdown = "*"
+PyYAML = "*"
