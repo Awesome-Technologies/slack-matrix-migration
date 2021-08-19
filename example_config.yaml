@@ -1,0 +1,29 @@
+# URL of your Matrix Homeserver Instance
+homeserver: https://example.org
+# Homeserver domain (domain part of the mxid)
+domain: example.org
+# Application Service Token from the matrix Homeserver
+as_token: very-secret
+# Don't download files from Slack and upload them to Matrix
+skip-files: False
+# Path to the Slack Backup relative to the current directory or absolute
+zipfile: ./Slack_Export.zip
+# Set to 'True' to perform a test without making changes to the homeserver
+dry-run: False
+# Set to 'False' if archived Channels from Slack should be migrated (and accessible in Matrix)
+skip-archived: True
+# Set to 'True' to invite all users to all rooms
+invite-all: False
+# Set to 'True' to invite the admin user to all rooms
+create-as-admin: False
+# Set to 'True' to kick all imported users from imported rooms
+kick-imported-users: False
+# Import public channels as private rooms
+import-as-private: False
+# Set to 'True' to allow rooms to be joined from other homeservers
+federate-rooms: False
+# Reply thread messages to previous thread message instead of parent message
+threads-reply-to-previous: True
+# Append room and displayname suffixes
+room-suffix: ""
+name-suffix: ""
