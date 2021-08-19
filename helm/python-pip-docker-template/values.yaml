@@ -1,11 +1,11 @@
-# Default values for python-pip-docker-template.
+# Default values for slak-matrix-migration.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
 replicaCount: 1
 
 image:
-  repository: sapian/python-pip-docker-template
+  repository: sapian/slak-matrix-migration
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: "0.1.1"
@@ -46,7 +46,7 @@ ingress:
     # kubernetes.io/ingress.class: nginx
     # kubernetes.io/tls-acme: "true"
   hosts:
-    - host: python-pip-docker-template.example.local
+    - host: slak-matrix-migration.example.local
       paths: []
   tls: []
   #  - secretName: chart-example-tls
@@ -58,7 +58,7 @@ ingressRoute:
   annotations: {}
   # kubernetes.io/ingress.class: nginx
   # kubernetes.io/tls-acme: "true"
-  host: python-pip-docker-template.example.com
+  host: slak-matrix-migration.example.com
   tls: 
     enabled: true
 

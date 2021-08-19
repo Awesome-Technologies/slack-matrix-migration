@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # vim: set fileencoding=utf-8 :
 #
-#       python-pip-docker-template/python-pip-docker-template/app.py
+#       slak-matrix-migration/slak-matrix-migration/app.py
 #       Copyright 2020 sebastian.rojo <sebastian.rojo@sapian.com.co>
 #
 #       This program is free software; you can redistribute it and/or modify
@@ -48,20 +48,20 @@ registry = CollectorRegistry()
 def terminateProcess(signalNumber, frame):
     log.error('(SIGTERM) terminating the process')
     if PROMETHEUS_PUSH_GW:
-        pushadd_to_gateway(PROMETHEUS_PUSH_GW, job='python-pip-docker-template', registry=registry)
+        pushadd_to_gateway(PROMETHEUS_PUSH_GW, job='slak-matrix-migration', registry=registry)
     sys.exit(1)
 
 if __name__ == '__main__':
     signal.signal(signal.SIGTERM, terminateProcess)
     last_success = Gauge(
-            'python_pip_docker_template_last_success_unixtime', 
+            'slak_matrix_migration_last_success_unixtime', 
             'Last time a batch job successfully finished', 
             registry=registry
     )
-    duration = Gauge('python_pip_docker_template_duration_seconds', 'Duration of batch job', registry=registry)
+    duration = Gauge('slak_matrix_migration_duration_seconds', 'Duration of batch job', registry=registry)
     try:
         with duration.time():
-            log.info('Starting... python-pip-docker-template')
+            log.info('Starting... slak-matrix-migration')
             sleep_sec=randint(10,100)
             log.info("Sleeping... for {} sec".format(sleep_sec))
             sleep(sleep_sec)
@@ -78,4 +78,4 @@ if __name__ == '__main__':
         last_success.set_to_current_time()
     finally:
         if PROMETHEUS_PUSH_GW:
-            pushadd_to_gateway(PROMETHEUS_PUSH_GW, job='python-pip-docker-template', registry=registry)
+            pushadd_to_gateway(PROMETHEUS_PUSH_GW, job='slak-matrix-migration', registry=registry)

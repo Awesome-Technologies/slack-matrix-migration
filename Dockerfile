@@ -20,14 +20,14 @@ COPY ./Pipfile /usr/src/app/Pipfile
 RUN pipenv install --skip-lock --system
 
 # copy project
-COPY python-pip-docker-template /usr/src/app/python-pip-docker-template/
-COPY *.md /usr/src/app/python-pip-docker-template/
+COPY slak-matrix-migration /usr/src/app/slak-matrix-migration/
+COPY *.md /usr/src/app/slak-matrix-migration/
 COPY conf/uwsgi.ini /app/
 COPY conf/nginx/ /etc/nginx/conf.d/
 
-WORKDIR /usr/src/app/python-pip-docker-template/
+WORKDIR /usr/src/app/slak-matrix-migration/
 RUN python setup.py install
-CMD python python-pip-docker-template/app.py
+CMD python slak-matrix-migration/app.py
 
 # run entrypoint.sh
 ENTRYPOINT ["/usr/src/app/entrypoint.sh"]
@@ -37,10 +37,10 @@ ARG VCS_REF
 ARG VERSION
 
 LABEL org.label-schema.build-date=$BUILD_DATE \
-      org.label-schema.name="python-pip-docker-template" \
+      org.label-schema.name="slak-matrix-migration" \
       org.label-schema.description="Here is a simple Python Flask for receiving a recording from doe.dialbox.cloud." \
       org.label-schema.url="https://www.sapian.cloud" \
-      org.label-schema.vcs-url="https://git.sapian.com.co/Sapian/python-pip-docker-template" \
+      org.label-schema.vcs-url="https://git.sapian.com.co/Sapian/slak-matrix-migration" \
       org.label-schema.maintainer="sebastian.rojo@sapian.com.co" \
       org.label-schema.vcs-ref=$VCS_REF \
       org.label-schema.vendor1="Sapian" \

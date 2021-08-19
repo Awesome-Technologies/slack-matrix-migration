@@ -1,5 +1,5 @@
 {{- if .Values.ingressRoute.enabled -}}
-{{- $fullName := include "python-pip-docker-template.fullname" . -}}
+{{- $fullName := include "slak-matrix-migration.fullname" . -}}
 {{- $svcPort := .Values.service.port -}}
 {{- $Host := .Values.ingressRoute.host -}}
 apiVersion: traefik.containo.us/v1alpha1
@@ -7,7 +7,7 @@ kind: IngressRoute
 metadata:
   name: http-{{ $fullName }}
   labels:
-    {{- include "python-pip-docker-template.labels" . | nindent 4 }}
+    {{- include "slak-matrix-migration.labels" . | nindent 4 }}
   {{- with .Values.ingressRoute.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}

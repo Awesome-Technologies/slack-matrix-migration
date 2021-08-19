@@ -1,12 +1,12 @@
 {{- if .Values.ingressRoute.tls.enabled -}}
-{{- $fullName := include "python-pip-docker-template.fullname" . -}}
+{{- $fullName := include "slak-matrix-migration.fullname" . -}}
 {{- $Host := .Values.ingressRoute.host -}}
 apiVersion: cert-manager.io/v1alpha2
 kind: Certificate
 metadata:
   name: {{ $fullName }}
   labels:
-    {{- include "python-pip-docker-template.labels" . | nindent 4 }}
+    {{- include "slak-matrix-migration.labels" . | nindent 4 }}
   {{- with .Values.ingressRoute.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}

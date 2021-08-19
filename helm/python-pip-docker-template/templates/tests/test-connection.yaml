@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: "{{ include "python-pip-docker-template.fullname" . }}-test-connection"
+  name: "{{ include "slak-matrix-migration.fullname" . }}-test-connection"
   labels:
-    {{- include "python-pip-docker-template.labels" . | nindent 4 }}
+    {{- include "slak-matrix-migration.labels" . | nindent 4 }}
   annotations:
     "helm.sh/hook": test
 spec:
@@ -11,5 +11,5 @@ spec:
     - name: wget
       image: busybox
       command: ['wget']
-      args: ['{{ include "python-pip-docker-template.fullname" . }}:{{ .Values.service.port }}']
+      args: ['{{ include "slak-matrix-migration.fullname" . }}:{{ .Values.service.port }}']
   restartPolicy: Never

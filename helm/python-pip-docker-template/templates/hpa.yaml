@@ -2,14 +2,14 @@
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ include "python-pip-docker-template.fullname" . }}
+  name: {{ include "slak-matrix-migration.fullname" . }}
   labels:
-    {{- include "python-pip-docker-template.labels" . | nindent 4 }}
+    {{- include "slak-matrix-migration.labels" . | nindent 4 }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ include "python-pip-docker-template.fullname" . }}
+    name: {{ include "slak-matrix-migration.fullname" . }}
   minReplicas: {{ .Values.autoscaling.minReplicas }}
   maxReplicas: {{ .Values.autoscaling.maxReplicas }}
   metrics:
