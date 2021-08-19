@@ -15,8 +15,23 @@
 
 import requests
 import slackdown
-from utils import send_event, print
+import logging
+import os
+
+from utils import send_event
 from emoji import emojize
+
+
+LOG_LEVEL = os.environ.get('LOG_LEVEL', "INFO").upper()
+logging.basicConfig(level=LOG_LEVEL)
+log = logging.getLogger('SLACK.MIGRATE')
+log_filename = "log/migration.log"
+os.makedirs(os.path.dirname(log_filename), exist_ok=True)
+fileHandler = logging.FileHandler(log_filename, mode="w", encoding=None, delay=False)
+log.addHandler(fileHandler)
+# consoleHandler = logging.StreamHandler()
+# consoleHandler.setFormatter(logFormatter)
+# log.addHandler(consoleHandler)
 
 '''
  * Converts a slack image attachment to a matrix image event.
@@ -159,10 +174,10 @@ def slackFileToMatrixMessage(file, url, thumbnailUrl):
 def uploadContentFromURI(content, uri, config, user):
     res = requests.get(uri)
     if res.status_code != 200:
-        print("ERROR! Received %d %s" % (res.status_code, res.reason))
+        log.info("ERROR! Received %d %s" % (res.status_code, res.reason))
         if 400 <= res.status_code < 500:
             try:
-                print(res.json()["error"])
+                log.info(res.json()["error"])
             except Exception:
                 pass
         return ''
@@ -170,19 +185,26 @@ def uploadContentFromURI(content, uri, config, user):
     file_content = res.content
 
     url = "%s/_matrix/media/r0/upload?user_id=%s&filename=%s" % (config["homeserver"],user,content["title"],)
-
-    r = requests.post(url, headers={'Authorization': 'Bearer ' + config["as_token"], 'Content-Type': content["mimetype"]}, data=file_content, verify=False)
-
-    if r.status_code != 200:
-        print("ERROR! Received %d %s" % (r.status_code, r.reason))
-        if 400 <= r.status_code < 500:
-            try:
-                print(r.json()["error"])
-            except Exception:
-                pass
-
+    try:
+        r = requests.post(url, headers={'Authorization': 'Bearer ' + config["as_token"], 'Content-Type': content["mimetype"]}, data=file_content, verify=False)
+    except requests.exceptions.RequestException as e:
+        # catastrophic error. bail.
+        log.error(
+            "Logging an uncaught exception {}".format(e),
+            exc_info=(traceback)
+        )
+        log.debug("error creating room {}".format(body))
+        return False
     else:
-        return r.json()["content_uri"]
+        if r.status_code != 200:
+            log.info("ERROR! Received %d %s" % (r.status_code, r.reason))
+            if 400 <= r.status_code < 500:
+                try:
+                    log.info(r.json()["error"])
+                except Exception:
+                    pass
+        else:
+            return r.json()["content_uri"]
 
 def process_attachments(attachments, roomId, userId, body, txnId, config):
     for file in attachments:
@@ -205,10 +227,10 @@ def process_snippet(file, roomId, userId, body, txnId, config, ts):
     htmlString = ""
     res = requests.get(file["url_private"])
     if res.status_code != 200:
-        print("ERROR! Received %d %s" % (res.status_code, res.reason))
+        log.info("ERROR! Received %d %s" % (res.status_code, res.reason))
         if 400 <= res.status_code < 500:
             try:
-                print(res.json()["error"])
+                log.info(res.json()["error"])
             except Exception:
                 pass
         return txnId
@@ -237,8 +259,8 @@ def process_snippet(file, roomId, userId, body, txnId, config, ts):
     res = send_event(config, messageContent, roomId, userId, "m.room.message", txnId, ts)
     if res == False:
         link = get_link(file)
-        print("Could not send snippet: " + link)
-        print("Trying to send as file...")
+        log.info("Could not send snippet: " + link)
+        log.info("Trying to send as file...")
         txnId = process_upload(file, roomId, userId, body, txnId, config, ts)
         return txnId
 
@@ -247,7 +269,7 @@ def process_snippet(file, roomId, userId, body, txnId, config, ts):
 def process_upload(file, roomId, userId, body, txnId, config, ts):
     if "maxUploadSize" in config and file["size"] > config["maxUploadSize"]:
         link = get_link(file)
-        print("WARNING: File too large, sending as a link: " + link);
+        log.info("WARNING: File too large, sending as a link: " + link);
         messageContent = {
             "body": link + '(' + file["name"] + ')',
             "format": "org.matrix.custom.html",
@@ -256,7 +278,7 @@ def process_upload(file, roomId, userId, body, txnId, config, ts):
         }
         res = send_event(config, messageContent, roomId, userId, "m.room.message", txnId, ts)
         if res == False:
-            print("ERROR while sending file link to room '" + roomId)
+            log.info("ERROR while sending file link to room '" + roomId)
 
     else:
         thumbUri = ""
@@ -281,7 +303,7 @@ def process_upload(file, roomId, userId, body, txnId, config, ts):
 
         res = send_event(config, messageContent, roomId, userId, "m.room.message", txnId, ts)
         if res == False:
-            print("ERROR while sending file to room '" + roomId)
+            log.info("ERROR while sending file to room '" + roomId)
 
     txnId = txnId + 1
     return txnId

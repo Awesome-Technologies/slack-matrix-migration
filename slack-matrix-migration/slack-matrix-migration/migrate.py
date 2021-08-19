@@ -15,23 +15,46 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import print_function
+import getpass
+import json
 import logging
 import os
-import sys
-import yaml
-import zipfile
-import requests
-import json
-import getpass
-import string
-import secrets
-import time
-from emoji import emojize
-import slackdown
 import re
+import secrets
+import string
+import sys
+import time
+import traceback
+import zipfile
+
+import requests
+import slackdown
+import yaml
+from alive_progress import alive_bar
+from dotenv import load_dotenv
+from emoji import emojize
+
 from files import process_attachments, process_files
-from utils import send_event, print
+
+from utils import send_event, invite_user
+
+load_dotenv()
+
+LOG_LEVEL = os.environ.get('LOG_LEVEL', "INFO").upper()
+ADMIN_USER_MATRIX = os.environ.get('ADMIN_USER_MATRIX')
+ADMIN_PASS_MATRIX = os.environ.get('ADMIN_PASS_MATRIX')
+
+LOG_LEVEL = os.environ.get('LOG_LEVEL', "INFO").upper()
+
+logging.basicConfig(level=LOG_LEVEL)
+log = logging.getLogger('SLACK.MIGRATE')
+log_filename = "log/migration.log"
+os.makedirs(os.path.dirname(log_filename), exist_ok=True)
+fileHandler = logging.FileHandler(log_filename, mode="w", encoding=None, delay=False)
+log.addHandler(fileHandler)
+# consoleHandler = logging.StreamHandler()
+# consoleHandler.setFormatter(logFormatter)
+# log.addHandler(consoleHandler)
 
 
 channelTypes = ["dms.json", "groups.json", "mpims.json", "channels.json", "users.json"]
@@ -46,16 +69,16 @@ replyLUT = {}
 later = []
 read_luts = False
 
-if not os.path.isfile("config.yaml"):
-    print("Config file does not exist.")
+if not os.path.isfile("conf/config.yaml"):
+    log.info("Config file does not exist.")
     sys.exit(1)
 
-f = open("config.yaml", "r")
+f = open("conf/config.yaml", "r")
 config_yaml = yaml.load(f.read(), Loader=yaml.FullLoader)
 
 # load luts from previous run
-if os.path.isfile("luts.yaml"):
-    f = open("luts.yaml", "r")
+if os.path.isfile("run/luts.yaml"):
+    f = open("run/luts.yaml", "r")
     luts = yaml.load(f.read(), Loader=yaml.FullLoader)
     userLUT = luts["userLUT"]
     nameLUT = luts["nameLUT"]
@@ -66,35 +89,35 @@ if os.path.isfile("luts.yaml"):
 
 def test_config(yaml):
     if not config_yaml["zipfile"]:
-        print("No zipfile defined in config")
+        log.info("No zipfile defined in config")
         sys.exit(1)
 
     if not config_yaml["homeserver"]:
-        print("No homeserver defined in config")
+        log.info("No homeserver defined in config")
         sys.exit(1)
 
     if not config_yaml["as_token"]:
-        print("No Application Service token defined in config")
+        log.info("No Application Service token defined in config")
         sys.exit(1)
 
     dry_run = config_yaml["dry-run"]
     skip_archived = config_yaml["skip-archived"]
 
-    config = { "zipfile": config_yaml["zipfile"], "dry-run": dry_run, "homeserver": config_yaml["homeserver"], "skip-archived": skip_archived, "as_token": config_yaml["as_token"], "skip-files": config_yaml["skip-files"]}
+    config = config_yaml
 
     return config
 
 def loadZip(config):
     zipName = config["zipfile"]
-    print("Opening zipfile: " + zipName)
+    log.info("Opening zipfile: " + zipName)
     archive = zipfile.ZipFile(zipName, 'r')
     jsonFiles = {}
     for channelType in channelTypes:
         try:
             jsonFiles[channelType] = archive.open(channelType)
-            print("Found " + channelType + " in archive. Adding.")
+            log.info("Found " + channelType + " in archive. Adding.")
         except:
-            print("Warning: Couldn't find " + channelType + " in archive. Skipping.")
+            log.info("Warning: Couldn't find " + channelType + " in archive. Skipping.")
     return jsonFiles
 
 def loadZipFolder(config, folder):
@@ -109,6 +132,12 @@ def loadZipFolder(config, folder):
 
         return fileList
 
+# TODO: user alive-progress
+# using bubble bar and notes spinner
+# with alive_bar(200, bar = 'bubbles', spinner = 'pointer') as bar:
+#     for i in range(200):
+#         sleep(0.03)
+#         bar()                        # call after consuming one ite
 # update_progress() : Displays or updates a console progress bar
 ## Accepts a float between 0 and 1. Any int will be converted to a float.
 ## A value under 0 represents a 'halt'.
@@ -138,21 +167,27 @@ def login(server_location):
     except Exception:
         default_user = None
 
-    if default_user:
-        admin_user = input("Admin user localpart [%s]: " % (default_user,))
-        if not admin_user:
-            admin_user = default_user
+    if not ADMIN_USER_MATRIX:
+        if default_user:
+            admin_user = input("Admin user localpart [%s]: " % (default_user,))
+            if not admin_user:
+                admin_user = default_user
+        else:
+            admin_user = input("Admin user localpart: ")
     else:
-        admin_user = input("Admin user localpart: ")
+        admin_user = ADMIN_USER_MATRIX
 
     if not admin_user:
-        print("Invalid user name")
+        log.info("Invalid user name")
         sys.exit(1)
 
-    admin_password = getpass.getpass("Password: ")
+    if not ADMIN_PASS_MATRIX:
+        admin_password = getpass.getpass("Password: ")
+    else:
+        admin_password = ADMIN_PASS_MATRIX
 
     if not admin_password:
-        print("Password cannot be blank.")
+        log.info("Password cannot be blank.")
         sys.exit(1)
 
     url = "%s/_matrix/client/r0/login" % (server_location,)
@@ -166,10 +201,10 @@ def login(server_location):
     r = requests.post(url, json=data, verify=False)
 
     if r.status_code != 200:
-        print("ERROR! Received %d %s" % (r.status_code, r.reason))
+        log.info("ERROR! Received %d %s" % (r.status_code, r.reason))
         if 400 <= r.status_code < 500:
             try:
-                print(r.json()["error"])
+                log.info(r.json()["error"])
             except Exception:
                 pass
         return False
@@ -184,10 +219,10 @@ def getMaxUploadSize(config, access_token):
     r = requests.get(url, verify=False)
 
     if r.status_code != 200:
-        print("ERROR! Received %d %s" % (r.status_code, r.reason))
+        log.info("ERROR! Received %d %s" % (r.status_code, r.reason))
         if 400 <= r.status_code < 500:
             try:
-                print(r.json()["error"])
+                log.info(r.json()["error"])
             except Exception:
                 pass
 
@@ -213,19 +248,27 @@ def register_user(
         "displayname": "".join([displayname, config_yaml["name-suffix"]]),
         "admin": admin,
     }
-
-    r = requests.put(url, json=data, headers=headers, verify=False)
-
-    if r.status_code != 200 and r.status_code != 201:
-        print("ERROR! Received %d %s" % (r.status_code, r.reason))
-        if 400 <= r.status_code < 500:
-            try:
-                print(r.json()["error"])
-            except Exception:
-                pass
+    try:
+        r = requests.put(url, json=data, headers=headers, verify=False)
+    except requests.exceptions.RequestException as e:
+        # catastrophic error. bail.
+        log.error(
+            "Logging an uncaught exception {}".format(e),
+            exc_info=(traceback)
+        )
+        # log.debug("error creating room {}".format(body))
         return False
-
-    return r
+    else:
+        if r.status_code != 200 and r.status_code != 201:
+            log.info("ERROR! Received %d %s" % (r.status_code, r.reason))
+            if 400 <= r.status_code < 500:
+                try:
+                    log.info(r.json()["error"])
+                except Exception:
+                    pass
+            return False
+        else:
+            return r
 
 def register_room(
     name,
@@ -237,6 +280,16 @@ def register_room(
     as_token,
 ):
     # register room
+    log.debug("register room {}".format(
+            (
+                name,
+                creator,
+                topic,
+                invitees,
+                preset,
+            )
+        )
+    )
     url = "%s/_matrix/client/r0/createRoom?user_id=%s" % (server_location,creator,)
 
     body = {
@@ -250,19 +303,41 @@ def register_room(
         "is_direct": True if preset == "trusted_private_chat" else False,
     }
 
-    #_print("Sending registration request...")
-    r = requests.post(url, headers={'Authorization': 'Bearer ' + as_token}, json=body, verify=False)
+    #_log.info("Sending registration request...")
+    try:
+        r = requests.post(url, headers={'Authorization': 'Bearer ' + as_token}, json=body, verify=False, timeout=300 )
+    # except requests.exceptions.Timeout:
+    #     # Maybe set up for a retry, or continue in a retry loop
+    # except requests.exceptions.TooManyRedirects:
+    #     # Tell the user their URL was bad and try a different one
+    except requests.exceptions.RequestException as e:
+        # catastrophic error. bail.
+        log.error(
+            "Logging an uncaught exception {}".format(e),
+            exc_info=(traceback)
+        )
+        # log.debug("error creating room {}".format(body))
+        return False
 
     if r.status_code != 200:
-        print("ERROR! Received %d %s" % (r.status_code, r.reason))
+        log.error("ERROR! Received %d %s" % (r.status_code, r.reason))
         if 400 <= r.status_code < 500:
             try:
-                print(r.json()["error"])
+                log.error(r.json()["error"])
             except Exception:
                 pass
         return False
 
     return r
+
+def invite_users(
+    invitees,
+    creator,
+    roomId,
+    config,
+):
+    for user in invitees:
+        invite_user(roomId, user, config)
 
 def autojoin_users(
     invitees,
@@ -273,187 +348,223 @@ def autojoin_users(
         #POST /_matrix/client/r0/rooms/{roomId}/join
         url = "%s/_matrix/client/r0/rooms/%s/join?user_id=%s" % (config["homeserver"],roomId,user,)
 
-        #_print("Sending registration request...")
-        r = requests.post(url, headers={'Authorization': 'Bearer ' + config["as_token"]}, verify=False)
-
-        if r.status_code != 200:
-            print("ERROR! Received %d %s" % (r.status_code, r.reason))
-            if 400 <= r.status_code < 500:
-                try:
-                    print(r.json()["error"])
-                except Exception:
-                    pass
+        #_log.info("Sending registration request...")
+        try:
+            r = requests.post(url, headers={'Authorization': 'Bearer ' + config["as_token"]}, verify=False)
+        except requests.exceptions.RequestException as e:
+            log.error(
+                "Logging an uncaught exception {}".format(e),
+                exc_info=(traceback)
+            )
+            # log.debug("error creating room {}".format(body))
+            return False
+        else:
+            if r.status_code != 200:
+                log.error("ERROR! Received %d %s" % (r.status_code, r.reason))
+                if 400 <= r.status_code < 500:
+                    try:
+                        log.info(r.json()["error"])
+                    except Exception:
+                        pass
 
 def migrate_users(userFile, config, access_token):
+    log = logging.getLogger('SLACK.MIGRATE.USER')
     userlist = []
     userData = json.load(userFile)
-    for user in userData:
-        if user["is_bot"] == True:
-            continue
-
-        # ignore slackbot
-        if user["id"] == "USLACKBOT":
-            continue
-
-        _servername = config["homeserver"].split('/')[2]
-        _matrix_user = user["name"]
-        _matrix_id = '@' + user["name"] + ':' + _servername
-
-        # check if display name is set
-        if "real_name" in user["profile"]:
-            _real_name = user["profile"]["real_name"]
-        else:
-            _real_name = ""
-
-        # check if email is set
-        if "email" in user["profile"]:
-            _email = user["profile"]["email"]
-        else:
-            _email = ""
-
-        # generate password
-        _alphabet = string.ascii_letters + string.digits
-        _password = ''.join(secrets.choice(_alphabet) for i in range(20)) # for a 20-character password
-
-        userDetails = {
-            "slack_id": user["id"],
-            "slack_team_id": user["team_id"],
-            "slack_name": user["name"],
-            "slack_real_name": _real_name,
-            "slack_email": _email,
-            "matrix_id": _matrix_id,
-            "matrix_user": _matrix_user,
-            "matrix_password": _password,
-        }
-
-        print("Registering Slack user " + userDetails["slack_id"] + " -> " + userDetails["matrix_id"])
-        if not config["dry-run"]:
-            res = register_user(userDetails["matrix_user"], userDetails["matrix_password"], userDetails["slack_real_name"], config["homeserver"], access_token)
-            if res == False:
-                print("ERROR while registering user '" + userDetails["matrix_id"] + "'")
+    with alive_bar(len(userData), bar = 'bubbles', spinner = 'waves2') as bar:
+        for user in userData:
+            if user["is_bot"] == True:
+                bar()
                 continue
 
-            # TODO force password change at next login
+            # ignore slackbot
+            if user["id"] == "USLACKBOT":
+                bar()
+                continue
 
-        userLUT[userDetails["slack_id"]] = userDetails["matrix_id"]
-        nameLUT[userDetails["matrix_id"]] = userDetails["slack_real_name"]
-        userlist.append(userDetails)
+            _servername = config["homeserver"].split('/')[2]
+            _matrix_user = user["name"]
+            _matrix_id = '@' + user["name"] + ':' + _servername
+
+            # check if display name is set
+            if "real_name" in user["profile"]:
+                _real_name = user["profile"]["real_name"]
+            else:
+                _real_name = ""
+
+            # check if email is set
+            if "email" in user["profile"]:
+                _email = user["profile"]["email"]
+            else:
+                _email = ""
+
+            # generate password
+            _alphabet = string.ascii_letters + string.digits
+            _password = ''.join(secrets.choice(_alphabet) for i in range(20)) # for a 20-character password
+
+            userDetails = {
+                "slack_id": user["id"],
+                "slack_team_id": user["team_id"],
+                "slack_name": user["name"],
+                "slack_real_name": _real_name,
+                "slack_email": _email,
+                "matrix_id": _matrix_id,
+                "matrix_user": _matrix_user,
+                "matrix_password": _password,
+            }
+
+            log.info("Registering Slack user " + userDetails["slack_id"] + " -> " + userDetails["matrix_id"])
+            if not config["dry-run"]:
+                res = register_user(userDetails["matrix_user"], userDetails["matrix_password"], userDetails["slack_real_name"], config["homeserver"], access_token)
+                if res == False:
+                    log.error("ERROR while registering user '" + userDetails["matrix_id"] + "'")
+                    continue
+
+                # TODO force password change at next login 
+                # https://github.com/euank/synapse-password-reset
+
+            userLUT[userDetails["slack_id"]] = userDetails["matrix_id"]
+            nameLUT[userDetails["matrix_id"]] = userDetails["slack_real_name"]
+            userlist.append(userDetails)
+            # time.sleep(1)
+            bar()
     return userlist
 
 
 def migrate_rooms(roomFile, config, admin_user):
+    log = logging.getLogger('SLACK.MIGRATE.ROOMS')
     roomlist = []
 
     # channels
     channelData = json.load(roomFile)
-    for channel in channelData:
-        if config["skip-archived"]:
-            if channel["is_archived"] == True:
-                continue
+    with alive_bar(len(channelData), bar = 'classic', spinner = 'waves2') as bar:
+        for channel in channelData:
+            if config["skip-archived"]:
+                if channel["is_archived"] == True:
+                    bar()
+                    continue
 
-        if config_yaml["create-as-admin"]:
-            _mxCreator = "".join(["@", admin_user, ":", config_yaml["domain"]])
-        else:
-            # if user is not in LUT (maybe its a shared channel), default to admin_user
-            if channel["creator"] in userLUT:
-                _mxCreator = userLUT[channel["creator"]]
-            else:
+            if config_yaml["create-as-admin"]:
                 _mxCreator = "".join(["@", admin_user, ":", config_yaml["domain"]])
+            else:
+                # if user is not in LUT (maybe its a shared channel), default to admin_user
+                if channel["creator"] in userLUT:
+                    _mxCreator = userLUT[channel["creator"]]
+                else:
+                    _mxCreator = "".join(["@", admin_user, ":", config_yaml["domain"]])
 
-        _invitees = []
-        if config_yaml["invite-all"]:
-            for user in nameLUT.keys():
-                if user != _mxCreator:
-                    _invitees.append(user)
-        else:
+            _invitees = []
+            if config_yaml["invite-all"]:
+                for user in nameLUT.keys():
+                    if user != _mxCreator:
+                        _invitees.append(user)
+            else:
+                for user in channel["members"]:
+                    if user != channel["creator"]:
+                        if user in userLUT: # ignore dropped users like bots
+                            _invitees.append(userLUT[user])
+
+            minimal_invites = []
             for user in channel["members"]:
                 if user != channel["creator"]:
                     if user in userLUT: # ignore dropped users like bots
-                        _invitees.append(userLUT[user])
+                        minimal_invites.append(userLUT[user])
 
-        roomDetails = {
-            "slack_id": channel["id"],
-            "slack_name": channel["name"],
-            "slack_members": channel["members"],
-            "slack_topic": channel["topic"],
-            "slack_purpose": channel["purpose"],
-            "slack_created": channel["created"],
-            "slack_creator": channel["creator"],
-            "matrix_id": '',
-            "matrix_creator": _mxCreator,
-            "matrix_topic": channel["topic"]["value"],
-        }
 
-        room_preset = "private_chat" if config_yaml["import-as-private"] else "public_chat"
 
-        if not config["dry-run"]:
-            res = register_room(roomDetails["slack_name"], roomDetails["matrix_creator"], roomDetails["matrix_topic"], _invitees, room_preset, config["homeserver"], config["as_token"])
+            roomDetails = {
+                "slack_id": channel["id"],
+                "slack_name": channel["name"],
+                "slack_members": channel["members"],
+                "slack_topic": channel["topic"],
+                "slack_purpose": channel["purpose"],
+                "slack_created": channel["created"],
+                "slack_creator": channel["creator"],
+                "matrix_id": '',
+                "matrix_creator": _mxCreator,
+                "matrix_topic": channel["topic"]["value"],
+            }
 
-            if res == False:
-                print("ERROR while registering room '" + roomDetails["slack_name"] + "'")
-                continue
-            else:
-                _content = json.loads(res.content)
-                roomDetails["matrix_id"] = _content["room_id"]
-            print("Registered Slack channel " + roomDetails["slack_name"] + " -> " + roomDetails["matrix_id"])
+            room_preset = "private_chat" if config_yaml["import-as-private"] else "public_chat"
 
-            #autojoin all members
-            autojoin_users(_invitees, roomDetails["matrix_id"], config)
+            if not config["dry-run"]:
+                res = register_room(roomDetails["slack_name"], roomDetails["matrix_creator"], roomDetails["matrix_topic"], minimal_invites, room_preset, config["homeserver"], config["as_token"])
 
-        roomLUT[roomDetails["slack_id"]] = roomDetails["matrix_id"]
-        roomLUT2[roomDetails["slack_id"]] = roomDetails["slack_name"]
-        roomlist.append(roomDetails)
+                if res == False:
+                    log.info("ERROR while registering room '" + roomDetails["slack_name"] + "'")
+                    continue
+                else:
+                    _content = json.loads(res.content)
+                    roomDetails["matrix_id"] = _content["room_id"]
+                log.info("Registered Slack channel " + roomDetails["slack_name"] + " -> " + roomDetails["matrix_id"])
+
+                #invite all members
+                if config_yaml["invite-all"]:
+                    invite_users(_invitees, roomDetails["matrix_creator"], roomDetails["matrix_id"], config)
+                #autojoin all members
+                autojoin_users(_invitees, roomDetails["matrix_id"], config)
+
+            roomLUT[roomDetails["slack_id"]] = roomDetails["matrix_id"]
+            roomLUT2[roomDetails["slack_id"]] = roomDetails["slack_name"]
+            roomlist.append(roomDetails)
+            #time.sleep(1)
+            bar()
 
     return roomlist
 
 def migrate_dms(roomFile, config):
+    log = logging.getLogger('SLACK.MIGRATE.DMS')
     roomlist = []
 
     # channels
     channelData = json.load(roomFile)
-    for channel in channelData:
-        if config["skip-archived"]:
-            if channel["is_archived"] == True:
+    with alive_bar(len(channelData), bar = 'squares', spinner = 'waves2') as bar:
+        for channel in channelData:
+            if config["skip-archived"]:
+                if channel["is_archived"] == True:
+                    bar()
+                    continue
+
+            # skip dms with slackbot
+            if channel["user"] == "USLACKBOT":
                 continue
 
-        # skip dms with slackbot
-        if channel["user"] == "USLACKBOT":
-            continue
+            _mxCreator = userLUT[channel["user"]]
 
-        _mxCreator = userLUT[channel["user"]]
+            _invitees = []
+            for user in channel["members"]:
+                if user != channel["user"]:
+                    _invitees.append(userLUT[user])
 
-        _invitees = []
-        for user in channel["members"]:
-            if user != channel["user"]:
-                _invitees.append(userLUT[user])
+            roomDetails = {
+                "slack_id": channel["id"],
+                "slack_members": channel["members"],
+                "slack_created": channel["created"],
+                "slack_creator": channel["user"],
+                "matrix_id": '',
+                "matrix_creator": _mxCreator,
+            }
 
-        roomDetails = {
-            "slack_id": channel["id"],
-            "slack_members": channel["members"],
-            "slack_created": channel["created"],
-            "slack_creator": channel["user"],
-            "matrix_id": '',
-            "matrix_creator": _mxCreator,
-        }
+            if not config["dry-run"]:
+                res = register_room('', roomDetails["matrix_creator"], '', _invitees, "trusted_private_chat", config["homeserver"], config["as_token"])
 
-        if not config["dry-run"]:
-            res = register_room('', roomDetails["matrix_creator"], '', _invitees, "trusted_private_chat", config["homeserver"], config["as_token"])
+                if res == False:
+                    log.info("ERROR while registering room '" + roomDetails["slack_name"] + "'")
+                    continue
+                else:
+                    _content = json.loads(res.content)
+                    roomDetails["matrix_id"] = _content["room_id"]
+                log.info("Registered Slack DM channel " + roomDetails["slack_id"] + " -> " + roomDetails["matrix_id"])
 
-            if res == False:
-                print("ERROR while registering room '" + roomDetails["slack_name"] + "'")
-                continue
-            else:
-                _content = json.loads(res.content)
-                roomDetails["matrix_id"] = _content["room_id"]
-            print("Registered Slack DM channel " + roomDetails["slack_id"] + " -> " + roomDetails["matrix_id"])
+                #autojoin all members
+                autojoin_users(_invitees, roomDetails["matrix_id"], config)
 
-            #autojoin all members
-            autojoin_users(_invitees, roomDetails["matrix_id"], config)
-
-        dmLUT[roomDetails["slack_id"]] = roomDetails["matrix_id"]
-        roomlist.append(roomDetails)
+            dmLUT[roomDetails["slack_id"]] = roomDetails["matrix_id"]
+            roomlist.append(roomDetails)
+            bar()
 
     return roomlist
+
 
 def send_reaction(config, roomId, eventId, reactionKey, userId, txnId):
 
@@ -493,7 +604,7 @@ def getFallbackText(replyEvent):
     originalBody = "\n> ".join(originalBody)
     return '> <' + replyEvent["sender"] + '> ' + originalBody
 
-def parse_and_send_message(config, message, matrix_room, txnId, is_later):
+def parse_and_send_message(config, message, matrix_room, txnId, is_later, log):
     content = {}
     is_thread = False
     is_reply = False
@@ -524,8 +635,8 @@ def parse_and_send_message(config, message, matrix_room, txnId, is_later):
                 # ignore messages from bots
                 return txnId
         else:
-            print("Message without user")
-            print(message)
+            log.info("Message without user")
+            log.info(message)
 
         # list of subtypes
         '''
@@ -569,10 +680,10 @@ def parse_and_send_message(config, message, matrix_room, txnId, is_later):
 
         if "files" in message:
             if "subtype" in message:
-                print(message["subtype"])
+                log.info(message["subtype"])
                 if message["subtype"] == "file_comment" or message["subtype"] == "thread_broadcast":
                     #TODO treat as reply
-                    print("")
+                    log.info("")
                 else:
                     txnId = process_files(message["files"], matrix_room, userLUT[message["user"]], body, txnId, config)
             else:
@@ -620,7 +731,7 @@ def parse_and_send_message(config, message, matrix_room, txnId, is_later):
         # TODO pinned / stared items?
 
         # replace emojis
-        body = emojize(body, use_aliases=True)
+        body = emojize(body, language='alias')
 
         # TODO some URLs with special characters (e.g. _ ) are parsed wrong
         formatted_body = slackdown.render(body)
@@ -655,7 +766,9 @@ def parse_and_send_message(config, message, matrix_room, txnId, is_later):
         res = send_event(config, content, matrix_room, userLUT[message["user"]], "m.room.message", txnId, ts)
         # save event id
         if res == False:
-            print("ERROR while sending event '" + message["user"] + " " + message["ts"] + "'")
+            log.info("ERROR while sending event '" + message["user"] + " " + message["ts"] + "'")
+            log.error("ERROR body {}".format(body))
+            log.error("ERROR formatted_body {}".format(formatted_body))
         else:
             _content = json.loads(res.content)
             # use "user" combined with "ts" as id like Slack does as "client_msg_id" is not always set
@@ -671,36 +784,46 @@ def parse_and_send_message(config, message, matrix_room, txnId, is_later):
                 eventId = eventLUT[message["user"]+message["ts"]]
                 for reaction in message["reactions"]:
                     for user in reaction["users"]:
-                        #print("Send reaction in room " + roomId)
-                        send_reaction(config, roomId, eventId, emojize(reaction["name"], use_aliases=True), userLUT[user], txnId)
+                        #log.info("Send reaction in room " + roomId)
+                        send_reaction(config, roomId, eventId, emojize(reaction["name"], language='alias'), userLUT[user], txnId)
                         txnId = txnId + 1
 
     else:
-        print("Ignoring message type " + message["type"])
+        log.info("Ignoring message type " + message["type"])
     return txnId
 
-def migrate_messages(fileList, matrix_room, config, tick):
+def migrate_messages(fileList, matrix_room, config, tick, log):
+    log.debug('start migration of messages for matrix room: {}'.format(matrix_room))
     global later
+    
     archive = zipfile.ZipFile(config["zipfile"], 'r')
     txnId = 1
     progress = 0
 
-    for file in fileList:
-        try:
-            fileData = archive.open(file)
-            messageData = json.load(fileData)
-        except:
-            print("Warning: Couldn't load data from file " + file + " in archive. Skipping this file.")
+    with alive_bar(bar = 'checks', spinner = 'waves2', manual=True) as bar:
+        for file in fileList:
+            log.debug("prcessing file {}".format(file))
+            try:
+                fileData = archive.open(file)
+                messageData = json.load(fileData)
+            except:
+                log.info("Warning: Couldn't load data from file " + file + " in archive. Skipping this file.")
 
-        for message in messageData:
-            txnId = parse_and_send_message(config, message, matrix_room, txnId, False)
+            for message in messageData:
+                try:
+                    txnId = parse_and_send_message(config, message, matrix_room, txnId, False, log)
+                except:
+                    log.error(
+                        "Warning: Couldn't send  message: {} to matrix_room {} id:{}".format(message, matrix_room, txnId)
+                    )
 
-        progress = progress + tick
-        update_progress(progress)
+            progress = progress + tick
+            # update_progress(progress)
+            bar(progress)
 
     # process postponed messages
     for message in later:
-        txnId = parse_and_send_message(config, message, matrix_room, txnId, True)
+        txnId = parse_and_send_message(config, message, matrix_room, txnId, True, log)
 
     # clean up postponed messages
     later = []
@@ -709,27 +832,39 @@ def kick_imported_users(server_location, admin_user, access_token, tick):
     headers = {'Authorization': ' '.join(['Bearer', access_token])}
     progress = 0
 
-    for room in roomLUT.values():
-        url = "%s/_matrix/client/r0/rooms/%s/kick" % (server_location, room)
+    with alive_bar(spinner = 'triangles', manual=True) as bar:
+        for room in roomLUT.values():
+            url = "%s/_matrix/client/r0/rooms/%s/kick" % (server_location, room)
 
-        for name in nameLUT.keys():
-            data = {"user_id": name}
+            for name in nameLUT.keys():
+                data = {"user_id": name}
 
-            r = requests.post(url, json=data, headers=headers, verify=False)
+                try:
+                    r = requests.post(url, json=data, headers=headers, verify=False)
+                except requests.exceptions.RequestException as e:
+                    # catastrophic error. bail.
+                    log.error(
+                        "Logging an uncaught exception {}".format(e),
+                        exc_info=(traceback)
+                    )
+                    # log.debug("error creating room {}".format(body))
+                    return False
+                else:
+                    if r.status_code != 200 and r.status_code != 201:
+                        log.info("ERROR! Received %d %s" % (r.status_code, r.reason))
+                        if 400 <= r.status_code < 500:
+                            try:
+                                log.info(r.json()["error"])
+                            except Exception:
+                                pass
 
-            if r.status_code != 200 and r.status_code != 201:
-                print("ERROR! Received %d %s" % (r.status_code, r.reason))
-                if 400 <= r.status_code < 500:
-                    try:
-                        print(r.json()["error"])
-                    except Exception:
-                        pass
-
-        progress = progress + tick
-        update_progress(progress)
+            progress = progress + tick
+            #update_progress(progress)
+            bar(progress)
 
 def main():
     logging.captureWarnings(True)
+    log = logging.getLogger('SLACK.MIGRATE.MAIN')
 
     config = test_config(yaml)
 
@@ -740,26 +875,32 @@ def main():
 
     maxUploadSize = getMaxUploadSize(config, access_token)
     config["maxUploadSize"] = maxUploadSize
+    config["admin_user"] = admin_user
+    log.info("maxUploadSize {}".format(maxUploadSize))
 
     if access_token == False:
-        print("ERROR! Admin user could not be logged in.")
+        log.info("ERROR! Admin user could not be logged in.")
         exit(1)
 
     # create users in matrix and match them to slack users
     if "users.json" in jsonFiles and not userLUT:
+        log.info("Creating Users")
         userlist = migrate_users(jsonFiles["users.json"], config, access_token)
 
     # create rooms and match to channels
     # Slack channels
     if "channels.json" in jsonFiles and not roomLUT:
+        log.info("Creating channels")
         roomlist_channels = migrate_rooms(jsonFiles["channels.json"], config, admin_user)
 
     # Slack groups
     if "groups.json" in jsonFiles and not roomLUT:
+        log.info("Creating groups")
         roomlist_groups = migrate_rooms(jsonFiles["groups.json"], config, admin_user)
 
     # create DMs
     if "dms.json" in jsonFiles and not dmLUT:
+        log.info("Creating DMS")
         roomlist_dms = migrate_dms(jsonFiles["dms.json"], config, admin_user)
 
     # write LUTs to file to be able to load from later if something goes wrong
@@ -772,35 +913,36 @@ def main():
             dmLUT = dmLUT,
             users = userlist,
         )
-        with open('luts.yaml', 'w') as outfile:
+        with open('run/luts.yaml', 'w') as outfile:
             yaml.dump(data, outfile, default_flow_style=False)
 
     # send events to rooms
-    print("Migrating messages to rooms. This may take a while...")
+    log.info("Migrating messages to rooms. This may take a while...")
     for slack_room, matrix_room in roomLUT.items():
-        print("Migrating messages for room: " + roomLUT2[slack_room])
+        log = logging.getLogger('SLACK.MIGRATE.MESSAGES.{}'.format(roomLUT2[slack_room]))
+        log.info("Migrating messages for room: " + roomLUT2[slack_room])
         fileList = sorted(loadZipFolder(config, roomLUT2[slack_room]))
         if fileList:
             tick = 1/len(fileList)
-            migrate_messages(fileList, matrix_room, config, tick)
+            migrate_messages(fileList, matrix_room, config, tick, log)
 
     # clean up postponed messages
     later = []
 
     # send events to dms
-    print("Migrating messages to DMs. This may take a while...")
+    log.info("Migrating messages to DMs. This may take a while...")
     for slack_room, matrix_room in dmLUT.items():
         fileList = sorted(loadZipFolder(config, slack_room))
         if fileList:
             tick = 1/len(fileList)
-            migrate_messages(fileList, matrix_room, config, tick)
+            migrate_messages(fileList, matrix_room, config, tick, log)
 
     # clean up postponed messages
     later = []
 
     # kick imported users from non-dm rooms
     if config_yaml["kick-imported-users"]:
-        print("Kicking imported users from rooms. This may take a while...")
+        log.info("Kicking imported users from rooms. This may take a while...")
         tick = 1/len(roomLUT)
         kick_imported_users(config["homeserver"], admin_user, access_token, tick)
 
