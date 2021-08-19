@@ -1,0 +1,22 @@
+{{- if .Values.ingressRoute.tls.enabled -}}
+{{- $fullName := include "python-pip-docker-template.fullname" . -}}
+{{- $Host := .Values.ingressRoute.host -}}
+apiVersion: cert-manager.io/v1alpha2
+kind: Certificate
+metadata:
+  name: {{ $fullName }}
+  labels:
+    {{- include "python-pip-docker-template.labels" . | nindent 4 }}
+  {{- with .Values.ingressRoute.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  secretName: {{ printf "%s-%s" .Release.Name "tls-le"  }}
+  issuerRef:
+    # The issuer created previously
+    name: letsencrypt-production-issuer
+    kind: ClusterIssuer
+  dnsNames:
+    - {{ $Host | quote }}
+{{- end }}

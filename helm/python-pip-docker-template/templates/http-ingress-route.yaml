@@ -1,0 +1,26 @@
+{{- if .Values.ingressRoute.enabled -}}
+{{- $fullName := include "python-pip-docker-template.fullname" . -}}
+{{- $svcPort := .Values.service.port -}}
+{{- $Host := .Values.ingressRoute.host -}}
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: http-{{ $fullName }}
+  labels:
+    {{- include "python-pip-docker-template.labels" . | nindent 4 }}
+  {{- with .Values.ingressRoute.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  entryPoints:
+    - web
+  routes:
+  - match: Host(`{{ $Host }}`) && PathPrefix(`/`)
+    kind: Rule
+    services:
+    - name: {{ $fullName }}
+      port: {{ $svcPort }}
+    middlewares:
+    - name: https-redirect-{{ $fullName }}
+{{- end }}

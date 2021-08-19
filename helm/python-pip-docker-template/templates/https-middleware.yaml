@@ -1,0 +1,17 @@
+{{- if .Values.ingressRoute.enabled -}}
+{{- $fullName := include "python-pip-docker-template.fullname" . -}}
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: https-redirect-{{ $fullName }}
+  labels:
+    {{- include "python-pip-docker-template.labels" . | nindent 4 }}
+  {{- with .Values.ingressRoute.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
+{{- end }}
