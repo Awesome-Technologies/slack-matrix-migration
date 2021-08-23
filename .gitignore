@@ -1,4 +1,5 @@
 # specific
+.vscode
 run/*
 log/*
 data/*
