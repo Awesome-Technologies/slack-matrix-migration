@@ -13,7 +13,7 @@ See 'Federated setup (import to an existing Matrix server)' below.
 
 # Why the Fork.
 
-We need complete refactor directory project from [Awesome-Technologies/slack-matrix-migration](https://github.com/sapianco/slack-matrix-migration)
+We need complete refactor directory project from [Awesome-Technologies/slack-matrix-migration](https://github.com/Awesome-Technologies/slack-matrix-migration)
 To ensure the next enhacements.
 
 - pip to pipenv
