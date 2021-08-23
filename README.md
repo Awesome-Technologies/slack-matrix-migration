@@ -1,4 +1,7 @@
 # Slack to Matrix Migration
+
+<img src="wiki/images/Logo_circular_Matrix_server_slack_migration_name_bg.svg" width="600">
+
 Migrates Users, Channels and all the conversations from a Slack export to Matrix
 
 Warning: It's not recommended to use anything but a fresh/empty Synapse instance for migration
@@ -99,17 +102,24 @@ name-suffix: " (slack import)"
 
 ## Running the migration
 
-### Set Enviroment variables
+## Set Enviroment variables
 Fill de file `.env`
 
 ``` ini
-LOG_LEVEL=DEBUG
+#LOG_LEVEL=DEBUG
+LOG_LEVEL=INFO
+ADMIN_USER_MATRIX = changeme
+ADMIN_PASS_MATRIX = changeme
+PYTHONWARNINGS="ignore:Unverified HTTPS request"
 ```
 
-1. [Activate Conda and Pipenv](#activate-conda-and-pipenv)
-2. Get a zipped Export of your Slack Workspace (https://slack.com/help/articles/201658943) and put on `data/`
-3. Copy `config/config_example.yaml` to `config/config.yaml` and edit to your needs (use the `as_token` from your `migration_service.yaml`)
-4. Run `python3 migrate.py`
+### Local (see docker run)
+
+1. [Set developing enviroment](#set-developing-enviroment)
+2. [Activate Conda and Pipenv](#activate-conda-and-pipenv)
+3. Get a zipped Export of your Slack Workspace (https://slack.com/help/articles/201658943) and put on `data/`
+4. Copy `config/config_example.yaml` to `config/config.yaml` and edit to your needs (use the `as_token` from your `migration_service.yaml`)
+5. Run `python3 slak-matrix-migration/slak-matrix-migration/migrate.py`
 
 ## Cleanup
 1. Remove the Application Service from your `homeserver.yaml`
@@ -118,8 +128,13 @@ LOG_LEVEL=DEBUG
 4. Restart Synapse
 
 
-## Run
+### Run in Docker
 
-``` Bash
-docker run --env-file .env --rm -it sapian/slak-matrix-migration:latest
-```
+1. Get a zipped Export of your Slack Workspace (https://slack.com/help/articles/201658943) and put on `data/`
+
+2. Copy `config/config_example.yaml` to `config/config.yaml` and edit to your needs (use the `as_token` from your `migration_service.yaml`)
+
+3. Run Docker
+  ``` Bash
+  docker run --env-file .env -v $(pwd)/log:/app/log -v $(pwd)/data:/app/data -v $(pwd)/run:/app/run -v $(pwd)/conf:/app/conf --rm -it sapian slak-matrix-migration:latest
+  ```
