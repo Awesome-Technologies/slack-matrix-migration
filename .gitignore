@@ -1,4 +1,7 @@
 # specific
+run/*
+log/*
+data/*
 conf/config.yaml
 helm/**/secret-values.yaml
 **/.env

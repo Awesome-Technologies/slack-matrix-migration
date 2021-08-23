@@ -2,13 +2,29 @@
 
 <img src="wiki/images/Logo_circular_Matrix_server_slack_migration_name_bg.svg" width="600">
 
-Migrates Users, Channels and all the conversations from a Slack export to Matrix
+This project is a fork from https://github.com/Awesome-Technologies/slack-matrix-migration
 
+Migrates Users, Channels and all the conversations from a Slack export to Matrix
 Warning: It's not recommended to use anything but a fresh/empty Synapse instance for migration
 
 However, you can configure it to import the Slack workspace to an empty federated server
 and use that to effectively migrate rooms to an existing Matrix server via federation.
 See 'Federated setup (import to an existing Matrix server)' below.
+
+# Why the Fork.
+
+We need complete refactor directory project from [Awesome-Technologies/slack-matrix-migration](https://github.com/sapianco/slack-matrix-migration)
+To ensure the next enhacements.
+
+- pip to pipenv
+- Docker
+- logging
+- python 3.9
+- alive-progress
+  - <img src="wiki/images/example.gif">
+- better logging
+- Env configuration and dot.env support
+- Fix massive Invites for large Slack Teams.
 
 
 # Build And Push to docker registry

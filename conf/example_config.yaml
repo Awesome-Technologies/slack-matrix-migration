@@ -12,8 +12,10 @@ zipfile: /data/Slack_Export.zip
 dry-run: False
 # Set to 'False' if archived Channels from Slack should be migrated (and accessible in Matrix)
 skip-archived: True
-# Set to 'True' to invite all users to all rooms
+# Set to 'True' to invite all users to all rooms ( Very slow on rooms creator whit many users )
 invite-all: False
+# Set to 'True' to invite user if get 403 on migrate message need create-as-admin=True
+invite-if-403: true
 # Set to 'True' to invite the admin user to all rooms
 create-as-admin: False
 # Set to 'True' to kick all imported users from imported rooms
