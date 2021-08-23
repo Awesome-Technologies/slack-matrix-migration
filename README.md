@@ -1,4 +1,5 @@
 # Slack to Matrix Migration
+This repo is just for push to Awesome-Technologies real repo here https://github.com/sapianco/slack-matrix-migration
 
 <img src="wiki/images/Logo_circular_Matrix_server_slack_migration_name_bg.svg" width="600">
 
