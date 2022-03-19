@@ -10,6 +10,8 @@ skip-files: False
 zipfile: /data/Slack_Export.zip
 # Set to 'True' to perform a test without making changes to the homeserver
 dry-run: False
+# Set to 'True' to run without asking for confirmation after each step
+run-unattended: False
 # Set to 'False' if archived Channels from Slack should be migrated (and accessible in Matrix)
 skip-archived: True
 # Set to 'True' to invite all users to all rooms ( Very slow on rooms creator whit many users )

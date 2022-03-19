@@ -884,23 +884,35 @@ def main():
 
     # create users in matrix and match them to slack users
     if "users.json" in jsonFiles and not userLUT:
-        log.info("Creating Users")
+        if not config["run-unattended"]:
+            input('Creating users. Press enter to proceed\n')
+        else:
+            log.info("Creating Users")
         userlist = migrate_users(jsonFiles["users.json"], config, access_token)
 
     # create rooms and match to channels
     # Slack channels
     if "channels.json" in jsonFiles and not roomLUT:
-        log.info("Creating channels")
+        if not config["run-unattended"]:
+            input('Creating channels. Press enter to proceed\n')
+        else:
+            log.info("Creating channels")
         roomlist_channels = migrate_rooms(jsonFiles["channels.json"], config, admin_user)
 
     # Slack groups
     if "groups.json" in jsonFiles and not roomLUT:
-        log.info("Creating groups")
+        if not config["run-unattended"]:
+            input('Creating groups. Press enter to proceed\n')
+        else:
+            log.info("Creating groups")
         roomlist_groups = migrate_rooms(jsonFiles["groups.json"], config, admin_user)
 
     # create DMs
     if "dms.json" in jsonFiles and not dmLUT:
-        log.info("Creating DMS")
+        if not config["run-unattended"]:
+            input('Creating DMs. Press enter to proceed\n')
+        else:
+            log.info("Creating DMs")
         roomlist_dms = migrate_dms(jsonFiles["dms.json"], config, admin_user)
 
     # write LUTs to file to be able to load from later if something goes wrong
@@ -917,7 +929,10 @@ def main():
             yaml.dump(data, outfile, default_flow_style=False)
 
     # send events to rooms
-    log.info("Migrating messages to rooms. This may take a while...")
+    if not config["run-unattended"]:
+        input('Migrating messages to rooms. This may take a while. Press enter to proceed\n')
+    else:
+        log.info("Migrating messages to rooms. This may take a while...")
     for slack_room, matrix_room in roomLUT.items():
         log = logging.getLogger('SLACK.MIGRATE.MESSAGES.{}'.format(roomLUT2[slack_room]))
         log.info("Migrating messages for room: " + roomLUT2[slack_room])
@@ -930,7 +945,10 @@ def main():
     later = []
 
     # send events to dms
-    log.info("Migrating messages to DMs. This may take a while...")
+    if not config["run-unattended"]:
+        input('Migrating messages to DMs. This may take a while. Press enter to proceed\n')
+    else:
+        log.info("Migrating messages to DMs. This may take a while...")
     for slack_room, matrix_room in dmLUT.items():
         fileList = sorted(loadZipFolder(config, slack_room))
         if fileList:
