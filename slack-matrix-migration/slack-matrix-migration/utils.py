@@ -51,7 +51,7 @@ def send_event(
     #_log.info("Sending registration request...")
     
     try:
-        r = requests.put(url, headers={'Authorization': 'Bearer ' + config["as_token"]}, json=matrix_message, verify=False)
+        r = requests.put(url, headers={'Authorization': 'Bearer ' + config["as_token"]}, json=matrix_message, verify=config["verify-ssl"])
     except requests.exceptions.RequestException as e:
         # catastrophic error. bail.
         log.error(
@@ -70,7 +70,7 @@ def send_event(
                     conf
                 )
                 try:
-                    r = requests.put(url, headers={'Authorization': 'Bearer ' + config["as_token"]}, json=matrix_message, verify=False)
+                    r = requests.put(url, headers={'Authorization': 'Bearer ' + config["as_token"]}, json=matrix_message, verify=config["verify-ssl"])
                 except requests.exceptions.RequestException as e:
                     # catastrophic error. bail.
                     log.error(
@@ -109,7 +109,7 @@ def invite_user(
 
         #_log.info("Sending registration request...")
         try:
-            r = requests.post(url, headers={'Authorization': 'Bearer ' + config["as_token"]}, json=body, verify=False)
+            r = requests.post(url, headers={'Authorization': 'Bearer ' + config["as_token"]}, json=body, verify=config["verify-ssl"])
         except requests.exceptions.RequestException as e:
             # catastrophic error. bail.
             log.error(

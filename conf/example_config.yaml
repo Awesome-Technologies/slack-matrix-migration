@@ -4,6 +4,8 @@ homeserver: https://example.org
 domain: example.org
 # Application Service Token from the matrix Homeserver
 as_token: very-secret
+# Verify https certificate (True) or ignore 'unsafe' SSL certificates (False)
+verify-ssl: True
 # Don't download files from Slack and upload them to Matrix
 skip-files: False
 # Path to the Slack Backup relative to the current directory or absolute

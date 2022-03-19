@@ -186,7 +186,7 @@ def uploadContentFromURI(content, uri, config, user):
 
     url = "%s/_matrix/media/r0/upload?user_id=%s&filename=%s" % (config["homeserver"],user,content["title"],)
     try:
-        r = requests.post(url, headers={'Authorization': 'Bearer ' + config["as_token"], 'Content-Type': content["mimetype"]}, data=file_content, verify=False)
+        r = requests.post(url, headers={'Authorization': 'Bearer ' + config["as_token"], 'Content-Type': content["mimetype"]}, data=file_content, verify=config["verify-ssl"])
     except requests.exceptions.RequestException as e:
         # catastrophic error. bail.
         log.error(

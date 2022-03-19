@@ -198,7 +198,7 @@ def login(server_location):
     }
 
     # Get the access token
-    r = requests.post(url, json=data, verify=False)
+    r = requests.post(url, json=data, verify=config["verify-ssl"])
 
     if r.status_code != 200:
         log.info("ERROR! Received %d %s" % (r.status_code, r.reason))
@@ -216,7 +216,7 @@ def login(server_location):
 def getMaxUploadSize(config, access_token):
     # get maxUploadSize from Homeserver
     url = "%s/_matrix/media/r0/config?access_token=%s" % (config_yaml["homeserver"],access_token,)
-    r = requests.get(url, verify=False)
+    r = requests.get(url, verify=config["verify-ssl"])
 
     if r.status_code != 200:
         log.info("ERROR! Received %d %s" % (r.status_code, r.reason))
@@ -249,7 +249,7 @@ def register_user(
         "admin": admin,
     }
     try:
-        r = requests.put(url, json=data, headers=headers, verify=False)
+        r = requests.put(url, json=data, headers=headers, verify=config["verify-ssl"])
     except requests.exceptions.RequestException as e:
         # catastrophic error. bail.
         log.error(
@@ -305,7 +305,7 @@ def register_room(
 
     #_log.info("Sending registration request...")
     try:
-        r = requests.post(url, headers={'Authorization': 'Bearer ' + as_token}, json=body, verify=False, timeout=300 )
+        r = requests.post(url, headers={'Authorization': 'Bearer ' + as_token}, json=body, verify=config["verify-ssl"], timeout=300 )
     # except requests.exceptions.Timeout:
     #     # Maybe set up for a retry, or continue in a retry loop
     # except requests.exceptions.TooManyRedirects:
@@ -350,7 +350,7 @@ def autojoin_users(
 
         #_log.info("Sending registration request...")
         try:
-            r = requests.post(url, headers={'Authorization': 'Bearer ' + config["as_token"]}, verify=False)
+            r = requests.post(url, headers={'Authorization': 'Bearer ' + config["as_token"]}, verify=config["verify-ssl"])
         except requests.exceptions.RequestException as e:
             log.error(
                 "Logging an uncaught exception {}".format(e),
@@ -840,7 +840,7 @@ def kick_imported_users(server_location, admin_user, access_token, tick):
                 data = {"user_id": name}
 
                 try:
-                    r = requests.post(url, json=data, headers=headers, verify=False)
+                    r = requests.post(url, json=data, headers=headers, verify=config["verify-ssl"])
                 except requests.exceptions.RequestException as e:
                     # catastrophic error. bail.
                     log.error(
