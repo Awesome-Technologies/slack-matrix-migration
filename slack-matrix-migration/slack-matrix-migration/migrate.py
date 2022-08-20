@@ -107,6 +107,8 @@ def test_config(yaml):
 
     return config
 
+config = test_config(config_yaml)
+
 def loadZip(config):
     zipName = config["zipfile"]
     log.info("Opening zipfile: " + zipName)
@@ -865,8 +867,6 @@ def kick_imported_users(server_location, admin_user, access_token, tick):
 def main():
     logging.captureWarnings(True)
     log = logging.getLogger('SLACK.MIGRATE.MAIN')
-
-    config = test_config(yaml)
 
     jsonFiles = loadZip(config)
 
